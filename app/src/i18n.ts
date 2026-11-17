@@ -36,7 +36,9 @@ const en = {
     exporting: "Exporting…",
     screenshots: "Screenshots",
     refresh: "Refresh",
-    clickToAdd: "Click a screenshot to make a slide.",
+    clickToAdd: "Click a screenshot to make a slide. The pencil adds more markings.",
+    addShot: "Add as a slide",
+    editShot: "Add markings in the editor",
     noShots: "No screenshots yet. Take one with Klik.",
     slides: (n: number) => `Slides (${n})`,
     untitled: "No headline",
@@ -146,7 +148,9 @@ const da: typeof en = {
     exporting: "Eksporterer…",
     screenshots: "Skærmbilleder",
     refresh: "Opdater",
-    clickToAdd: "Klik på et billede for at lave en slide.",
+    clickToAdd: "Klik på et billede for at lave en slide. Blyanten tilføjer flere markeringer.",
+    addShot: "Læg ind som slide",
+    editShot: "Tilføj markeringer i editoren",
     noShots: "Ingen skærmbilleder endnu. Tag et med Klik.",
     slides: (n: number) => `Slides (${n})`,
     untitled: "Uden overskrift",
@@ -219,5 +223,28 @@ const da: typeof en = {
   },
 };
 
-const lang = (navigator.languages?.[0] ?? navigator.language ?? "en").toLowerCase();
-export const t = lang.startsWith("da") ? da : en;
+export type Lang = "en" | "da";
+
+const LANG_KEY = "klik-lang";
+
+function stored(): Lang | null {
+  try {
+    const v = localStorage.getItem(LANG_KEY);
+    return v === "en" || v === "da" ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The user's choice from Studio's EN/DA switch, else the Windows language. */
+export const lang: Lang = stored() ?? ((navigator.languages?.[0] ?? navigator.language ?? "en").toLowerCase().startsWith("da") ? "da" : "en");
+export const t = lang === "da" ? da : en;
+
+/** Saves the choice; both Klik windows read it the next time they load. */
+export function setLang(next: Lang) {
+  try {
+    localStorage.setItem(LANG_KEY, next);
+  } catch {
+    /* storage blocked: the choice lasts until the window reloads */
+  }
+}

@@ -17,13 +17,20 @@ export async function loadShot(): Promise<Shot> {
   return { bitmap: await createImageBitmap(data), w, h };
 }
 
-export function onCaptured(cb: () => void): () => void {
+/** Where a reopened screenshot sits on the backdrop: x, y, w, h in image pixels. */
+export type Preselect = [number, number, number, number] | null;
+
+/**
+ * A new capture, or a saved screenshot reopened from Studio (then `sel` says
+ * where it is, already selected). In a plain browser, `?edit` simulates the latter.
+ */
+export function onCaptured(cb: (sel: Preselect) => void): () => void {
   if (!inTauri) {
-    cb();
+    cb(new URLSearchParams(location.search).has("edit") ? [160, 120, 480, 300] : null);
     return () => {};
   }
   let off = () => {};
-  listen("captured", cb).then((u) => {
+  listen<Preselect>("captured", (e) => cb(e.payload ?? null)).then((u) => {
     off = u;
     // Tell the core we listen; a pending "open Klik = screenshot" fires now.
     invoke("frontend_ready");

@@ -29,6 +29,11 @@ struct Shot(Mutex<Option<(u32, u32, Vec<u8>)>>);
 #[derive(Default)]
 struct CurrentFile(Mutex<Option<PathBuf>>);
 
+/// A saved screenshot reopened in the editor from Studio: its path and its
+/// original bytes, so ✕ can put the original back instead of deleting it.
+#[derive(Default)]
+struct Editing(Mutex<Option<(PathBuf, Vec<u8>)>>);
+
 /// The hotkey Klik got, shown in the tray menu and the overlay hint.
 #[derive(Default)]
 struct Hotkey(Mutex<Option<String>>);
@@ -70,13 +75,69 @@ fn capture(app: &AppHandle) -> Result<(), String> {
 
     *app.state::<Shot>().0.lock().unwrap() = Some((w, h, img.into_raw()));
     app.state::<CurrentFile>().0.lock().unwrap().take();
+    app.state::<Editing>().0.lock().unwrap().take();
 
     win.set_position(PhysicalPosition::new(x, y)).map_err(err)?;
     win.set_size(PhysicalSize::new(w, h)).map_err(err)?;
     // The overlay pulls the image with `get_shot`, draws it, then calls
     // `show_overlay`, so the old frame never flashes.
-    win.emit("captured", ()).map_err(err)?;
+    win.emit("captured", None::<[u32; 4]>).map_err(err)?;
     Ok(())
+}
+
+/// Ink `#15162b`, behind a reopened screenshot.
+const BACKDROP: [u8; 4] = [0x15, 0x16, 0x2b, 0xff];
+
+/// Puts `img` in the middle of a monitor-sized backdrop. Returns the RGBA
+/// pixels and where the image sits (x, y, w, h), which the editor selects.
+fn compose(mon_w: u32, mon_h: u32, img: &image::RgbaImage) -> Result<(Vec<u8>, [u32; 4]), String> {
+    let (w, h) = img.dimensions();
+    if w > mon_w || h > mon_h {
+        return Err(format!("The screenshot ({w} x {h}) is larger than this screen ({mon_w} x {mon_h})."));
+    }
+    let (x0, y0) = ((mon_w - w) / 2, (mon_h - h) / 2);
+    let mut out = BACKDROP.repeat((mon_w * mon_h) as usize);
+    let row = (w * 4) as usize;
+    for y in 0..h {
+        let src = (y * w * 4) as usize;
+        let dst = (((y0 + y) * mon_w + x0) * 4) as usize;
+        out[dst..dst + row].copy_from_slice(&img.as_raw()[src..src + row]);
+    }
+    Ok((out, [x0, y0, w, h]))
+}
+
+/// Studio's pencil: reopen a saved screenshot in the editor, already
+/// selected, so new markings go on top. Every change saves over the same
+/// file, and Studio redraws the slides that use it.
+#[tauri::command(async)]
+fn edit_capture(app: AppHandle, name: String) -> Result<(), String> {
+    let win = overlay(&app).ok_or("overlay window missing")?;
+    if win.is_visible().unwrap_or(false) {
+        return Err("Klik is already capturing".into());
+    }
+    let path = output_dir(&app)?.join(safe_name(&name)?);
+    let bytes = std::fs::read(&path).map_err(err)?;
+    let img = image::load_from_memory(&bytes).map_err(err)?.to_rgba8();
+    let cursor = app.cursor_position().map_err(err)?;
+    let mon = xcap::Monitor::from_point(cursor.x as i32, cursor.y as i32).map_err(err)?;
+    let (mw, mh) = (mon.width().map_err(err)?, mon.height().map_err(err)?);
+    let (rgba, sel) = compose(mw, mh, &img)?;
+
+    *app.state::<Shot>().0.lock().unwrap() = Some((mw, mh, rgba));
+    *app.state::<CurrentFile>().0.lock().unwrap() = Some(path.clone());
+    *app.state::<Editing>().0.lock().unwrap() = Some((path, bytes));
+
+    win.set_position(PhysicalPosition::new(mon.x().map_err(err)?, mon.y().map_err(err)?)).map_err(err)?;
+    win.set_size(PhysicalSize::new(mw, mh)).map_err(err)?;
+    win.emit("captured", Some(sel)).map_err(err)?;
+    Ok(())
+}
+
+/// Tells Studio a screenshot file changed, so it redraws slides that use it.
+fn announce_saved(app: &AppHandle, path: &std::path::Path) {
+    if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+        let _ = app.emit_to(STUDIO, "capture-saved", name);
+    }
 }
 
 fn capture_async(app: &AppHandle) {
@@ -200,14 +261,23 @@ fn save_copy(app: AppHandle, request: Request<'_>) -> Result<String, String> {
     Ok(path.to_string_lossy().into_owned())
 }
 
-/// Hides the overlay. `discard` deletes the file saved for this capture.
+/// Hides the overlay. `discard` deletes the file saved for this capture, or,
+/// for a screenshot reopened from Studio, puts the original back.
 #[tauri::command]
 fn close(app: AppHandle, window: WebviewWindow, discard: bool) -> Result<(), String> {
     window.hide().map_err(err)?;
     app.state::<Shot>().0.lock().unwrap().take();
+    let editing = app.state::<Editing>().0.lock().unwrap().take();
     if let Some(p) = app.state::<CurrentFile>().0.lock().unwrap().take() {
-        if discard {
-            let _ = std::fs::remove_file(p);
+        match (discard, editing) {
+            (true, Some((orig, bytes))) if orig == p => {
+                std::fs::write(&p, bytes).map_err(err)?;
+                announce_saved(&app, &p);
+            }
+            (true, _) => {
+                let _ = std::fs::remove_file(p);
+            }
+            (false, _) => announce_saved(&app, &p),
         }
     }
     Ok(())
@@ -219,7 +289,11 @@ fn close(app: AppHandle, window: WebviewWindow, discard: bool) -> Result<(), Str
 fn close_to_studio(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
     window.hide().map_err(err)?;
     app.state::<Shot>().0.lock().unwrap().take();
+    app.state::<Editing>().0.lock().unwrap().take();
     let saved = app.state::<CurrentFile>().0.lock().unwrap().take();
+    if let Some(p) = &saved {
+        announce_saved(&app, p);
+    }
     open_studio(&app);
     if let Some(name) = saved.as_ref().and_then(|p| p.file_name()).and_then(|n| n.to_str()) {
         app.emit_to(STUDIO, "add-shot", name).map_err(err)?;
@@ -428,6 +502,20 @@ mod studio_tests {
     }
 
     #[test]
+    fn reopened_screenshot_sits_centred_on_the_backdrop() {
+        let img = image::RgbaImage::from_pixel(4, 2, image::Rgba([200, 30, 30, 255]));
+        let (px, sel) = compose(10, 6, &img).unwrap();
+        assert_eq!(sel, [3, 2, 4, 2]);
+        assert_eq!(px.len(), 10 * 6 * 4);
+        let at = |x: usize, y: usize| &px[(y * 10 + x) * 4..(y * 10 + x) * 4 + 4];
+        assert_eq!(at(0, 0), BACKDROP);
+        assert_eq!(at(3, 2), [200, 30, 30, 255]);
+        assert_eq!(at(6, 3), [200, 30, 30, 255]);
+        assert_eq!(at(7, 3), BACKDROP);
+        assert!(compose(3, 6, &img).is_err(), "wider than the screen");
+    }
+
+    #[test]
     fn capture_names_count_up_through_the_day() {
         let at = |h, m| chrono::NaiveDate::from_ymd_opt(2026, 11, 17).unwrap().and_hms_opt(h, m, 5).unwrap();
         let names = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>().into_iter();
@@ -539,12 +627,14 @@ pub fn run() {
         .manage(Shot::default())
         .manage(Hotkey::default())
         .manage(CurrentFile::default())
+        .manage(Editing::default())
         .invoke_handler(tauri::generate_handler![
             get_shot,
             show_overlay,
             save_copy,
             close,
             close_to_studio,
+            edit_capture,
             frontend_ready,
             hotkey_label,
             list_captures,

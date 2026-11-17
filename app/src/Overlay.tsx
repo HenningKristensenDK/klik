@@ -68,7 +68,7 @@ export function Overlay() {
   // A new capture arrives: draw it first, then show the window.
   useEffect(
     () =>
-      onCaptured(async () => {
+      onCaptured(async (pre) => {
         const next = await loadShot();
         hotkey.current = await hotkeyLabel();
         shot.current?.bitmap.close();
@@ -76,8 +76,10 @@ export function Overlay() {
         const c = canvasRef.current!;
         c.width = next.w;
         c.height = next.h;
-        Object.assign(st.current, { mode: "select", sel: null, shapes: [], draft: null, start: null, busy: false, toast: "", status: "", editing: null });
-        render(c.getContext("2d")!, next.bitmap, null, [], k());
+        // A screenshot reopened from Studio arrives already selected, ready to mark.
+        const sel = pre ? { x: pre[0], y: pre[1], w: pre[2], h: pre[3] } : null;
+        Object.assign(st.current, { mode: sel ? "edit" : "select", sel, shapes: [], draft: null, start: null, busy: false, toast: "", status: "", editing: null });
+        render(c.getContext("2d")!, next.bitmap, sel, [], k());
         rerender();
         await showOverlay();
       }),
@@ -403,7 +405,7 @@ export function Overlay() {
             {s.status === "error" && t.copyFailed}
           </span>
           <button className="to-studio" title={t.toStudioTitle} onClick={toStudio}>
-            <Icon name="studio" /> {t.toStudio} <kbd>S</kbd>
+            <Icon name="studio" /> {t.toStudio}
           </button>
           <button className="done" title={t.doneTitle} onClick={done}>
             {t.done} <kbd>Esc</kbd>
