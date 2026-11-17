@@ -1,6 +1,6 @@
 [package]
 name = "klik"
-version = "0.1.5"
+version = "0.2.0"
 description = "Klik - enkel screenshot"
 edition = "2021"
 
@@ -20,6 +20,7 @@ arboard = "3"
 image = { version = "0.25", default-features = false, features = ["png"] }
 chrono = "0.4"
 sys-locale = "0.3"
+serde = { version = "1", features = ["derive"] }
 
 [profile.release]
 opt-level = 3
