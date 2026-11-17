@@ -44,6 +44,15 @@ html.studio-page, html.studio-page body, html.studio-page #root { background: #f
 .shot { border: 1px solid var(--border); background: #fafafd; border-radius: 9px; padding: 0; aspect-ratio: 16 / 10; overflow: hidden; }
 .shot:hover { outline: 2px solid var(--indigo); }
 .shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.shot-cell { position: relative; }
+.shot-cell .shot { width: 100%; display: block; }
+/* Pencil: reopen in the editor. Always visible, so it is one click, never a hover hunt. */
+.shot-edit {
+  position: absolute; top: 5px; right: 5px; width: 28px; height: 28px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 7px; border: 1px solid var(--border); background: #fff; color: var(--text);
+}
+.shot-edit:hover { color: var(--indigo); border-color: var(--indigo); }
 
 .st-list ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .st-list li button {

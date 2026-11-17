@@ -34,6 +34,28 @@ export async function saveExport(folder: string, file: string, bytes: Uint8Array
 
 export const openExports = (folder: string) => (inTauri ? invoke("open_exports", { folder }) : Promise.resolve());
 
+/** Reopens a saved screenshot in the editor, to add markings on top. */
+export async function editCapture(name: string): Promise<void> {
+  if (inTauri) await invoke("edit_capture", { name });
+  else (window as unknown as { __edited?: string }).__edited = name;
+}
+
+/** A screenshot file changed (new markings, or the original put back). */
+export function onCaptureSaved(cb: (name: string) => void): () => void {
+  if (!inTauri) {
+    const h = (e: Event) => cb(String((e as CustomEvent).detail));
+    window.addEventListener("klik-capture-saved", h);
+    return () => window.removeEventListener("klik-capture-saved", h);
+  }
+  let off = () => {};
+  let gone = false;
+  listen<string>("capture-saved", (e) => cb(e.payload)).then((u) => (gone ? u() : (off = u)));
+  return () => {
+    gone = true;
+    off();
+  };
+}
+
 /**
  * The editor's Studio button sends the name of the screenshot it saved.
  * In a plain browser, a test can send one with

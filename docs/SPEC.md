@@ -1,6 +1,6 @@
 # Klik: product specification
 
-Version 0.10, 2026.11.17. Owner: Henning Kristensen (RTPM).
+Version 0.11, 2026.11.18. Owner: Henning Kristensen (RTPM).
 The name Klik is decided (2026.11.17).
 
 This spec records Henning's wishes for a simple screen capture tool that covers the most-used Snagit features with far fewer clicks. Each requirement says where it stands: **Built** (code exists and was tested in a browser, not yet on Windows), **Planned**, or **Open** (a decision is still needed). What comes next is in `ROADMAP.md`.
@@ -207,6 +207,8 @@ A second window of Klik, ported from the separate Klik Content app (old repo, PR
 - From the editor (Built, 0.2.2): the "Studio" button (key `S`) next to "Done" closes the editor, opens Studio and adds the screenshot just taken, with its markings, as a new slide. One click. The button is white, so "Done" stays the one yellow action, and it is never needed in the normal capture flow, so the click budget for tasks 1 and 2 (section 4) is unchanged. Reason for the new button: Windows hides new tray icons, so the only other way in took three clicks on a hidden icon (found in Henning's test 2026.11.17).
 - From the tray menu: "Klik Studio: make a carousel or slides", to work on a deck without a new screenshot.
 
+**S1a. Gallery with re-edit: Built (0.2.3).** Studio's screenshot gallery (newest 60 in `Pictures\Klik`) has two actions per screenshot, each one click: click the picture to add it as a slide, or click the pencil to reopen it in the editor. The reopened screenshot sits in the middle of an ink backdrop, already selected, so the next drag marks it. Every change saves over the same file and Studio redraws the slides that use it. ✕ puts the original back instead of deleting the file. Markings already in a file are part of the picture: new ones go on top, old ones cannot be moved or removed. Henning asked for a chooser after the Studio button (deck or gallery); it was left out because it costs an extra click on the most common path, and the gallery gives both choices inside Studio (decided 2026.11.17).
+
 **S2. Studio window (C2): Built.** Recent screenshots from `Pictures\Klik` (newest 60); one click adds a screenshot slide. Slide kinds: cover (dark), screenshot (light), rule (light), text (light), closer (dark). A rule slide gets "Rule n of N" and the big indigo number automatically, a body with one indigo span, and an "In practice" line. Per slide: tag, headline, highlight, body, screenshot. Reorder, delete, add rule or text slide. The deck is saved automatically on the PC.
 
 **S3. Profile (part of C2): Built, changed.** Name, title, experience line, photo and an optional light logo for the closer. All are kept only on the user's PC and never in the repo. Because Klik is public, the defaults are placeholders (`[Your name]`, `[Your title]`) instead of Henning's details, and the RTPM logo is not shipped: each user adds their own logo once (Henning adds the RTPM wordmark).
@@ -250,6 +252,8 @@ These targets are the pass/fail test. Henning does each task in Snagit and in Kl
 | Video with indigo cursor | hotkey → drag → … → hotkey | 1 drag |
 | Long page | hotkey → click in window | 1 click |
 | Screenshot as a Studio slide | `Ctrl+Alt+K` → drag → markings → `S` | 1 drag, 0 clicks (or 1 click on "Studio") |
+| Older screenshot into the deck | in Studio: click it in the gallery | 1 click |
+| More markings on an older screenshot | in Studio: pencil → mark → `Esc` | 1 click |
 
 ## 5. Non-functional requirements
 

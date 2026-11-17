@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { t } from "../i18n";
 import { DEFAULT_PROFILE, drawSlide, loadFonts, SIZE, textIssues, type Assets, type Format, type Issue, type Kind, type Profile, type Slide } from "./render";
-import { listCaptures, listClaudeDrafts, onAddShot, openExports, readCapture, type Capture, type ClaudeDraft } from "./io";
+import { editCapture, listCaptures, listClaudeDrafts, onAddShot, onCaptureSaved, openExports, readCapture, type Capture, type ClaudeDraft } from "./io";
 import { exportDeck } from "./export";
 
 const STORE = "klik-studio-v1";
@@ -210,6 +210,34 @@ export function Studio() {
     [refresh],
   );
 
+  // A screenshot was marked again in the editor: redraw its thumbnail and slides.
+  useEffect(
+    () =>
+      onCaptureSaved(async (name) => {
+        try {
+          const blob = await readCapture(name);
+          assets.current.shots.get(name)?.close();
+          assets.current.shots.set(name, await createImageBitmap(blob));
+          setThumbs((t) => {
+            if (t[name]) URL.revokeObjectURL(t[name]);
+            return { ...t, [name]: URL.createObjectURL(blob) };
+          });
+          setSlides((all) => [...all]); // same slides, new pixels: redraw the preview
+        } catch {
+          /* the file is gone */
+        }
+      }),
+    [],
+  );
+
+  const reopen = async (name: string) => {
+    try {
+      await editCapture(name);
+    } catch (e) {
+      setNote(String(e));
+    }
+  };
+
   const move = (d: -1 | 1) =>
     setSlides((all) => {
       const i = all.findIndex((s) => s.id === current.id);
@@ -335,9 +363,16 @@ export function Studio() {
         <p className="st-hint">{t.studio.clickToAdd}</p>
         <div className="shot-grid">
           {captures.map((c) => (
-            <button key={c.name} className="shot" title={c.name} onClick={() => insertBeforeCloser(blank("shot", c.name))}>
-              {thumbs[c.name] ? <img src={thumbs[c.name]} alt="" /> : <span />}
-            </button>
+            <div key={c.name} className="shot-cell">
+              <button className="shot" title={`${t.studio.addShot}: ${c.name}`} onClick={() => insertBeforeCloser(blank("shot", c.name))}>
+                {thumbs[c.name] ? <img src={thumbs[c.name]} alt="" /> : <span />}
+              </button>
+              <button className="shot-edit" title={t.studio.editShot} aria-label={t.studio.editShot} onClick={() => reopen(c.name)}>
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M14.5 4.5l5 5L9 20H4v-5z" />
+                </svg>
+              </button>
+            </div>
           ))}
           {!captures.length && <p className="st-hint">{t.studio.noShots}</p>}
         </div>
