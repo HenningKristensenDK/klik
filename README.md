@@ -35,9 +35,13 @@ No save dialog, no copy button. **Esc** just closes. Images are also saved in `P
 
 Five colours. `Shift` while drawing gives a straight stroke.
 
+## Klik Studio
+
+Right-click the Klik icon by the clock and choose **Klik Studio**. Click your screenshots to turn them into a **4:5 LinkedIn carousel** or **16:9 slides**, with brand checks that keep text readable on a phone. Export gives a PDF plus one PNG per slide. Add your name, photo and logo once; they stay on your PC.
+
 ## Works with Claude
 
-Klik comes with a small MCP server, so Claude can see your latest screenshot and pass work between Claude sessions through a local inbox, with no copy-paste.
+Klik comes with a small MCP server, so Claude can see your latest screenshot, pass work between Claude sessions through a local inbox, and draft a Studio carousel from your screenshots, with no copy-paste.
 Download `Klik.mcpb` from the [latest release](https://github.com/HenningKristensenDK/klik/releases/latest) and double-click it to add it to Claude Desktop. More in [mcp/README.md](mcp/README.md).
 
 ## Privacy

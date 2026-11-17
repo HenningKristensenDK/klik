@@ -7,7 +7,7 @@ Klik is a free, open-source (MIT) Windows screenshot tool made by Real Time Proj
 - **Fewer clicks beats more features.** That is the product. The click budget in `docs/SPEC.md` section 4 is the test, and a new button or dialog needs a stated reason in its pull request.
 - **One app.** Capture, editor and every later window (Studio, step capture, video) live in `app/`. Copies of the app drifted apart within a day once, so extend this app instead of forking it.
 - **Local by default.** Nothing leaves the PC unless the user starts it. The README promises this.
-- **RTPM product brand.** Inter only; light surfaces; Primary Indigo `#0d08d2` for the active state; one Accent Yellow `#ffcc00` primary action per screen; marking colours red `#C0392B`, indigo, green `#27AE60`, yellow, ink `#15162b`; sentence case; no em-dashes. The tokens live in `app/src/styles.css`. Source: RTPM's internal brand system (038-KNW); ask Henning before changing a token.
+- **RTPM product brand for the UI.** Inter only; light surfaces; Primary Indigo `#0d08d2` for the active state; one Accent Yellow `#ffcc00` primary action per screen; marking colours red `#C0392B`, indigo, green `#27AE60`, yellow, ink `#15162b`; sentence case; no em-dashes. The tokens live in `app/src/styles.css`. Source: RTPM's internal brand system (038-KNW); ask Henning before changing a token. Studio's slides use the RTPM content brand instead, with their own tokens in `app/src/studio/render.ts`; keep the two apart.
 - **Two languages, few words.** UI text goes in `app/src/i18n.ts` (frontend) and `danish()` in `app/src-tauri/src/lib.rs` (tray), English plus Danish. Code, comments and docs are in English.
 
 Everything else is a default you may change, saying why.
@@ -25,7 +25,8 @@ Everything else is a default you may change, saying why.
 ## Where things are
 
 - `app/src/`: editor (`Overlay.tsx`), shapes and export (`draw.ts`), Tauri calls and demo desktop (`bridge.ts`), texts (`i18n.ts`).
-- `app/src-tauri/src/lib.rs`: hotkey, capture of the monitor under the mouse, clipboard and file, tray menu.
+- `app/src/studio/`: Klik Studio window (`Studio.tsx`), slide drawing and brand checks (`render.ts`, RTPM content brand tokens), PDF/PNG export, file access (`io.ts`).
+- `app/src-tauri/src/lib.rs`: hotkey, capture of the monitor under the mouse, clipboard and file, tray menu, and Studio's file access (read captures and drafts, write exports).
 - `mcp/`: the MCP server Claude uses (`store.rs` holds the tested file logic).
 - `docs/SPEC.md`: what Klik should do, with pass tests. `ROADMAP.md`: what comes next.
 

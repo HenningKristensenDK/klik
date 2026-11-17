@@ -1,5 +1,8 @@
 //! Klik: capture core.
 //!
+//! Klik Studio (a second window, opened from the tray) turns screenshots into
+//! a 4:5 carousel or 16:9 slides; its file access is at "Klik Studio" below.
+//!
 //! Flow: hotkey -> capture the monitor under the cursor -> the overlay window
 //! covers that monitor and shows the frozen image -> the user selects an area,
 //! which is saved to Pictures\Klik and put on the clipboard at once -> every
@@ -16,6 +19,7 @@ use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, Webview
 use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut, ShortcutState};
 
 const OVERLAY: &str = "overlay";
+const STUDIO: &str = "studio";
 
 /// The last captured monitor image: (width, height, RGBA bytes).
 #[derive(Default)]
@@ -206,6 +210,201 @@ fn open_dir(dir: Result<PathBuf, String>) {
     }
 }
 
+// ---------- Klik Studio ----------
+// Studio only reads Pictures\Klik and the handoff inbox, and only writes to
+// Documents\Klik\Studio. Every name it sends is checked by `safe_name`.
+
+/// A screenshot in Pictures\Klik.
+#[derive(serde::Serialize)]
+struct Capture {
+    name: String,
+    /// Last change, milliseconds since 1970.
+    modified: u64,
+}
+
+fn modified_ms(entry: &std::fs::DirEntry) -> u64 {
+    entry
+        .metadata()
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
+
+/// The newest 60 PNG files in Pictures\Klik, newest first.
+#[tauri::command]
+fn list_captures(app: AppHandle) -> Result<Vec<Capture>, String> {
+    let dir = output_dir(&app)?;
+    let mut out = Vec::new();
+    for entry in std::fs::read_dir(dir).map_err(err)?.flatten() {
+        let path = entry.path();
+        let is_png = path.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("png"));
+        if !is_png || !path.is_file() {
+            continue;
+        }
+        if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+            out.push(Capture { name: name.to_string(), modified: modified_ms(&entry) });
+        }
+    }
+    out.sort_by(|a, b| b.modified.cmp(&a.modified));
+    out.truncate(60);
+    Ok(out)
+}
+
+/// A plain file name, never a path, so Studio can only reach its own folders.
+fn safe_name(name: &str) -> Result<&str, String> {
+    let n = name.trim();
+    if n.is_empty() || n.starts_with('.') || n.contains(['/', '\\', ':']) || n.contains("..") {
+        return Err("invalid file name".into());
+    }
+    Ok(n)
+}
+
+/// PNG bytes of one screenshot in Pictures\Klik.
+#[tauri::command(async)]
+fn read_capture(app: AppHandle, name: String) -> Result<Response, String> {
+    let path = output_dir(&app)?.join(safe_name(&name)?);
+    Ok(Response::new(std::fs::read(path).map_err(err)?))
+}
+
+/// Documents\Klik\Studio, where carousels and slides are exported.
+fn exports_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let dir = app.path().document_dir().map_err(err)?.join("Klik").join("Studio");
+    std::fs::create_dir_all(&dir).map_err(err)?;
+    Ok(dir)
+}
+
+fn percent_decode(s: &str) -> String {
+    let b = s.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'%' && i + 2 < b.len() {
+            if let Some(Ok(v)) = s.get(i + 1..i + 3).map(|h| u8::from_str_radix(h, 16)) {
+                out.push(v);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(b[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+fn header(request: &Request<'_>, key: &str) -> Result<String, String> {
+    let v = request.headers().get(key).ok_or(format!("missing {key}"))?;
+    Ok(percent_decode(v.to_str().map_err(err)?))
+}
+
+/// Writes one export file. Body: the file bytes. Headers: x-folder, x-file
+/// (URI-encoded plain names). Returns the export folder path.
+#[tauri::command(async)]
+fn save_export(app: AppHandle, request: Request<'_>) -> Result<String, String> {
+    let InvokeBody::Raw(body) = request.body() else {
+        return Err("expected file bytes".into());
+    };
+    let folder = header(&request, "x-folder")?;
+    let file = header(&request, "x-file")?;
+    let dir = exports_dir(&app)?.join(safe_name(&folder)?);
+    std::fs::create_dir_all(&dir).map_err(err)?;
+    std::fs::write(dir.join(safe_name(&file)?), body).map_err(err)?;
+    Ok(dir.to_string_lossy().into_owned())
+}
+
+/// Opens an export folder (a path returned by `save_export`) in Explorer.
+#[tauri::command]
+fn open_exports(app: AppHandle, folder: String) -> Result<(), String> {
+    let root = exports_dir(&app)?;
+    let path = PathBuf::from(&folder);
+    let target = if path.starts_with(&root) { path } else { root };
+    open_dir(Ok(target));
+    Ok(())
+}
+
+/// A deck Claude wrote into the handoff inbox (via klik-mcp `handoff_write`)
+/// as a fenced ```klik-deck JSON block. Studio only reads it; the person
+/// reviews and exports.
+#[derive(serde::Serialize)]
+struct ClaudeDraft {
+    file: String,
+    title: String,
+    modified: u64,
+    deck: String,
+}
+
+fn deck_block(md: &str) -> Option<String> {
+    let start = md.find("```klik-deck")?;
+    let rest = &md[start + "```klik-deck".len()..];
+    let end = rest.find("```")?;
+    Some(rest[..end].trim().to_string())
+}
+
+fn front_title(md: &str) -> Option<String> {
+    let body = md.strip_prefix("---\n").or_else(|| md.strip_prefix("---\r\n"))?;
+    let fm = &body[..body.find("\n---")?];
+    fm.lines()
+        .find_map(|l| l.strip_prefix("title:"))
+        .map(|t| t.trim().trim_matches('"').to_string())
+}
+
+/// Claude drafts in the handoff inbox, newest first.
+#[tauri::command]
+fn list_claude_drafts(app: AppHandle) -> Result<Vec<ClaudeDraft>, String> {
+    let dir = inbox_dir(&app)?;
+    let mut out = Vec::new();
+    for entry in std::fs::read_dir(dir).map_err(err)?.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("md") {
+            continue;
+        }
+        let Ok(md) = std::fs::read_to_string(&path) else { continue };
+        let Some(deck) = deck_block(&md) else { continue };
+        let file = path.file_name().and_then(|n| n.to_str()).unwrap_or_default().to_string();
+        let title = front_title(&md).unwrap_or_else(|| file.trim_end_matches(".md").to_string());
+        out.push(ClaudeDraft { file, title, modified: modified_ms(&entry), deck });
+    }
+    out.sort_by(|a, b| b.modified.cmp(&a.modified));
+    out.truncate(20);
+    Ok(out)
+}
+
+fn open_studio(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window(STUDIO) {
+        let _ = w.unminimize();
+        let _ = w.show();
+        let _ = w.set_focus();
+    }
+}
+
+#[cfg(test)]
+mod studio_tests {
+    use super::*;
+
+    #[test]
+    fn safe_name_blocks_paths() {
+        for bad in ["", ".", "..", "../x.png", "a/b.png", "a\\b.png", "C:x.png", ".hidden", "x..png"] {
+            assert!(safe_name(bad).is_err(), "{bad}");
+        }
+        assert_eq!(safe_name(" Klik 2026-11-17 101500.png ").unwrap(), "Klik 2026-11-17 101500.png");
+    }
+
+    #[test]
+    fn reads_deck_block_and_title() {
+        let md = "---\ntitle: \"Klik deck: one owner\"\ncreated: x\n---\n\nIntro\n```klik-deck\n{\"slides\":[]}\n```\n";
+        assert_eq!(deck_block(md).as_deref(), Some("{\"slides\":[]}"));
+        assert_eq!(front_title(md).as_deref(), Some("Klik deck: one owner"));
+        assert!(deck_block("no deck here").is_none());
+    }
+
+    #[test]
+    fn decodes_percent_names() {
+        assert_eq!(percent_decode("2026-11-17%201015%20Post%204x5"), "2026-11-17 1015 Post 4x5");
+        assert_eq!(percent_decode("Pr%C3%A6sentation.pdf"), "Præsentation.pdf");
+    }
+}
+
 /// English, or Danish when Windows runs in Danish.
 fn danish() -> bool {
     sys_locale::get_locale().is_some_and(|l| l.to_lowercase().starts_with("da"))
@@ -226,9 +425,12 @@ fn setup_tray(app: &AppHandle, hotkey: Option<&str>) -> tauri::Result<()> {
     let key = MenuItem::with_id(app, "key", key_label, false, None::<&str>)?;
     let folder = MenuItem::with_id(app, "folder", tr("Open screenshots", "Åbn screenshots"), true, None::<&str>)?;
     let inbox = MenuItem::with_id(app, "inbox", tr("Open inbox (Claude)", "Åbn indbakke (Claude)"), true, None::<&str>)?;
+    let studio = MenuItem::with_id(app, "studio", tr("Klik Studio: make a carousel or slides", "Klik Studio: lav karrusel eller præsentation"), true, None::<&str>)?;
+    let exports = MenuItem::with_id(app, "exports", tr("Open Studio exports", "Åbn Studio-eksporter"), true, None::<&str>)?;
     let sep = PredefinedMenuItem::separator(app)?;
+    let sep2 = PredefinedMenuItem::separator(app)?;
     let quit = MenuItem::with_id(app, "quit", tr("Quit Klik", "Afslut Klik"), true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&shot, &key, &folder, &inbox, &sep, &quit])?;
+    let menu = Menu::with_items(app, &[&shot, &key, &sep2, &studio, &exports, &folder, &inbox, &sep, &quit])?;
     let tooltip = match hotkey {
         Some(k) => format!("Klik  -  {} {k}", tr("click here or press", "klik her eller tryk")),
         None => format!("Klik  -  {}", tr("click here for a screenshot", "klik her for screenshot")),
@@ -243,6 +445,8 @@ fn setup_tray(app: &AppHandle, hotkey: Option<&str>) -> tauri::Result<()> {
             "shot" => capture_async(app),
             "folder" => open_dir(output_dir(app)),
             "inbox" => open_dir(inbox_dir(app)),
+            "studio" => open_studio(app),
+            "exports" => open_dir(exports_dir(app)),
             "quit" => app.exit(0),
             _ => {}
         })
@@ -290,7 +494,12 @@ pub fn run() {
             save_copy,
             close,
             frontend_ready,
-            hotkey_label
+            hotkey_label,
+            list_captures,
+            read_capture,
+            save_export,
+            open_exports,
+            list_claude_drafts
         ])
         .setup(move |app| {
             use tauri_plugin_global_shortcut::GlobalShortcutExt;

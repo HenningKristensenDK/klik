@@ -1,6 +1,6 @@
 # Klik: product specification
 
-Version 0.7, 2026.11.16. Owner: Henning Kristensen (RTPM).
+Version 0.8, 2026.11.17. Owner: Henning Kristensen (RTPM).
 "Klik" is a working name.
 
 This spec records Henning's wishes for a simple screen capture tool that covers the most-used Snagit features with far fewer clicks. Each requirement says where it stands: **Built** (code exists and was tested in a browser, not yet on Windows), **Planned**, or **Open** (a decision is still needed). What comes next is in `ROADMAP.md`.
@@ -97,7 +97,7 @@ Priority: **Must** = MVP, **Should** = next release, **Could** = later.
 ### F7. Screen video with a visible cursor: Should, Planned
 
 - One hotkey, select an area or the whole screen, and the same hotkey stops recording.
-- A **yellow ring follows the cursor**, and each click shows a short ripple, so viewers see where you point.
+- An **indigo ring follows the cursor** (2 px `#0D08D2` with a light indigo halo `#E7E6FA`, never gold), and each click shows a short ripple, so viewers see where you point. Decided by Henning 2026.11.16 to match the RTPM brand guide.
 - Output is MP4 that plays in Teams and PowerPoint.
 - **Accept when:** a 2-minute recording has a visible cursor ring and a click ripple at every click, and plays in both apps.
 
@@ -177,6 +177,65 @@ The problem: a result from one AI session (chat, Project, Claude Code) is copied
 | Claude Code on the PC | Yes. `claude mcp add` |
 | claude.ai in a browser, the phone app, Claude Code in the cloud | No, they cannot reach the PC. Possible bridge (Could, not tested): keep the inbox in a OneDrive or Google Drive folder and read it with the existing Microsoft 365 or Google Drive connectors. A remote MCP server in RTPM's own cloud is a later option, but then data leaves the PC. |
 
+### F15. LinkedIn posts from a recording: Could, Planned
+
+Klik turns one rough demo recording (F6, F7, F8) into finished LinkedIn content, so a new build can be shown the same day without a separate video or design tool. Part of Klik and Klik Studio (F16), not a separate app.
+
+**Flow:** record as usual, press "Make post" in Studio, review the edit plan, export.
+
+1. **Event log while recording.** F6 and F7 also save `events.json`: every click and key with timestamp, screen position and, where Windows UI Automation gives it, the button or field name. Claude can then understand a recording without watching all of it.
+2. **Local transcript.** Speech from F8 becomes text with timestamps on the PC (for example whisper.cpp). No audio leaves the PC for this step.
+3. **AI edit plan.** Only when the user presses the button, Claude reads `events.json`, the transcript and a few keyframes and returns `edit.json`: cuts, zoom-ins on clicks, captions, a hook line and a short storyboard. The user reviews it in a simple timeline. The original recording is never changed.
+4. **Voice (optional).** Keep the user's own cleaned-up voice, or let a cloned voice read the approved script: only the user's own voice, with recorded consent, and the post says the voice is AI-generated.
+5. **Render.** A bundled FFmpeg sidecar renders the plan with the Studio brand overlays: hook card, burned-in captions, lower third and end card.
+6. **Images and documents.** Step screenshots (F6) become a Studio carousel or slides (F16).
+
+| Output | Size | Use |
+|---|---|---|
+| Feed video | 1080 × 1350 (4:5), MP4 | Default LinkedIn video |
+| Vertical video | 1080 × 1920 (9:16), MP4 | Short clips for the vertical feed |
+| Wide video | 1920 × 1080 (16:9), MP4 | Website, YouTube, presentations. Its own layout, never a crop of 4:5 |
+
+- **Privacy:** as F9. AI and voice services run only when the user presses the button for that recording. Recordings of client systems go to Claude only with the client's permission. Everything else stays in `Videos\Klik\`.
+- **Accept when:** a 2-minute rough recording becomes a captioned 4:5 MP4 with hook and end card after one press and light edits only.
+
+### F16. Klik Studio: carousels and slides from screenshots: Should, Built
+
+A second window of Klik, ported from the separate Klik Content app (old repo, PR #4 and #5) so all of Klik is one app and one installer. Requirement numbers S1 to S7 carry over Klik Content's C1 to C8.
+
+**S1. One app (was C1, "separate app"): Built.** Studio is a window of Klik, opened from the tray menu ("Klik Studio: make a carousel or slides"). It reuses Klik's screenshot folder `Pictures\Klik`, the MCP server (F13) and the handoff inbox (F14). Opening Studio is never a step in capture, so the click budget (section 4) is unchanged.
+
+**S2. Studio window (C2): Built.** Recent screenshots from `Pictures\Klik` (newest 60); one click adds a screenshot slide. Slide kinds: cover (dark), screenshot (light), rule (light), text (light), closer (dark). A rule slide gets "Rule n of N" and the big indigo number automatically, a body with one indigo span, and an "In practice" line. Per slide: tag, headline, highlight, body, screenshot. Reorder, delete, add rule or text slide. The deck is saved automatically on the PC.
+
+**S3. Profile (part of C2): Built, changed.** Name, title, experience line, photo and an optional light logo for the closer. All are kept only on the user's PC and never in the repo. Because Klik is public, the defaults are placeholders (`[Your name]`, `[Your title]`) instead of Henning's details, and the RTPM logo is not shipped: each user adds their own logo once (Henning adds the RTPM wordmark).
+
+**S4. Two formats (C3): Built.**
+
+| Format | Size | Use | Layout |
+|---|---|---|---|
+| 4:5 carousel | 1080 × 1350 per page | LinkedIn document post | One column. Nothing essential below y 1170 |
+| 16:9 slides | 1920 × 1080 per page | Demo, user walkthrough, website | Text left, screenshot right. Its own layout, never a crop of 4:5 |
+
+**S5. Brand checks (C4): Built.** Slides follow the approved RTPM V2 carousel template (brand guide section 5b, 2026.11.16): cover with soft indigo glow, kicker, headline, subtitle, "Swipe →" right-aligned in light blue, and the profile block; interiors with a round headshot, name and page "3/8" in indigo; rule slides as above. Fonts: Barlow Semi Condensed 700/600 for headlines and "Swipe", Inter for the rest (bundled). One highlight per slide: gold on dark, indigo on light. Text shrinks to the phone floors (headline 64 px, body 36 px, labels 30 px) and is flagged if it still does not fit. Also flagged: em-dashes, URLs, a highlight not taken from its text, more than 4 highlighted words, headline outside 4 to 8 words, body over 25 words, any number outside a `[placeholder]` (must come from an approved source), "AI-powered" or "unique" in a headline, a rule slide without "In practice", carousel length outside 6 to 9. The glow values are a proposal until the brand system fixes them.
+
+*Two brands, kept apart:* the Studio window uses the RTPM **product** brand like the rest of Klik (Inter, light, tokens in `app/src/styles.css`). The slides use the RTPM **content** brand (Barlow Semi Condensed + Inter, navy and paper grounds); those tokens live only in `app/src/studio/render.ts` and are used only on slide canvases.
+
+**S6. Export (C5): Built.** One PDF (`Carousel.pdf` or `Slides.pdf`, Danish names on Danish Windows) plus one PNG per slide in `Documents\Klik\Studio\<date> <title> <format>\`. The folder opens when done. A person always presses Export.
+
+**S7. Claude writes the story (C6): Built, untested with Claude Desktop.** The user writes the audience and angle and copies a brief to Claude Desktop. With the Klik connector, Claude looks at the screenshots and saves a draft with `handoff_write`: a fenced `klik-deck` JSON block (format, title, angle, slides). Studio lists drafts from the inbox and loads one with one click; without the connector the user can paste Claude's JSON. Claude never edits screenshots or files.
+
+- **Accept when:** in Claude Desktop, one pasted brief gives a draft that loads in Studio and exports with only light edits; and Henning makes one carousel from his own captures and exports it on Windows.
+
+**Open in Studio**
+
+| # | Question or gap |
+|---|---|
+| SQ1 (was CQ1) | Should Claude be able to start an export itself (a write tool in klik-mcp), or should a person always press Export? Today a person always exports. |
+| SQ2 (was CQ2) | ~~Merge the content maker into Klik or keep two apps?~~ Decided 2026.11.17: one app (S1). |
+| SQ3 (was CQ3) | ~~Role line in the profile chip~~ Decided 2026.11.16: title plus experience line, now user settings (S3). |
+| SQ4 | **Screenshot crop for phones: Open.** A full screenshot in a 904 px card makes app text about 5 pt on a phone. Studio needs a crop step to the relevant area. |
+| SQ5 | Recording to post (was C7) is F15. |
+
 ## 4. Click budget
 
 These targets are the pass/fail test. Henning does each task in Snagit and in Klik. Klik passes when every task needs fewer clicks than Snagit and no task shows a dialog.
@@ -186,7 +245,7 @@ These targets are the pass/fail test. Henning does each task in Snagit and in Kl
 | Area screenshot into Teams | `Ctrl+Alt+K` → drag → `Ctrl+V` in Teams | 1 drag |
 | Screenshot with steps 1–3 | `Ctrl+Alt+K` → drag → `A` → 3 drags → `Ctrl+V` | 1 + 3 drags |
 | 10-step guide | hotkey → your 10 clicks → hotkey | 0 extra clicks |
-| Video with yellow cursor | hotkey → drag → … → hotkey | 1 drag |
+| Video with indigo cursor | hotkey → drag → … → hotkey | 1 drag |
 | Long page | hotkey → click in window | 1 click |
 
 ## 5. Non-functional requirements
@@ -195,7 +254,7 @@ These targets are the pass/fail test. Henning does each task in Snagit and in Kl
 - **Speed (targets, not yet measured):** editor visible in under 0.3 seconds after the hotkey, and Esc to clipboard in under 0.5 seconds on a 4K monitor.
 - **Screens:** several monitors with different scaling must work. The capture follows the mouse.
 - **Storage:** `Pictures\Klik\`, with file names `Klik YYYY-MM-DD HHMMSS.png`.
-- **Privacy:** no telemetry. No network calls except F9, and only when the user starts it.
+- **Privacy:** no telemetry. No network calls except F9 and F15, and only when the user starts them. Klik Studio (F16) makes no network calls; Claude only sees what the user's own Claude connection asks for.
 - **Language:** English user interface, and Danish when Windows runs in Danish (decided 2026.11.17). Few words, so keeping both costs little.
 - **Install:** no admin rights needed.
 
@@ -216,6 +275,7 @@ Klik copies Snagit's ideas, not its code or look. It is built from public descri
 | Q3 | Highlighter: was "marker" meant as a yellow highlighter (built) or a red pen? | The default tool |
 | Q4 | ~~Danish only, or Danish and English?~~ Decided 2026.11.17: English, plus Danish on Danish Windows | - |
 | Q5 | Whose Claude account pays for F9, and where do client guides get stored (local folder, SharePoint)? | Cost and client data rules |
+| Q7 | F15: which voice and AI services, and who pays? Is an AI voice used at all on client-facing demos? | Cost, consent and how an AI voice is labelled |
 | Q6 | Do most of Henning's AI sessions run in Claude Desktop and Claude Code on the PC, or in the browser and on the phone? | F13 and F14 only work locally without the Drive bridge |
 
 ## 9. Source of these wishes

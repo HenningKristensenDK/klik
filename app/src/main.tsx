@@ -1,12 +1,32 @@
 import { createRoot } from "react-dom/client";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Overlay } from "./Overlay";
+import { Studio } from "./studio/Studio";
+import { inTauri } from "./bridge";
 import "@fontsource/inter/400.css";
 import "@fontsource/inter/500.css";
 import "@fontsource/inter/600.css";
 import "@fontsource/inter/700.css";
+// Barlow Semi Condensed is for Studio's slides only (RTPM content brand), never the UI.
+import "@fontsource/barlow-semi-condensed/600.css";
+import "@fontsource/barlow-semi-condensed/700.css";
 import "./styles.css";
+import "./studio/studio.css";
 
 // Canvas text (step numbers) only uses Inter once it is loaded.
 document.fonts.load('700 16px "Inter"').catch(() => {});
 
-createRoot(document.getElementById("root")!).render(<Overlay />);
+// One page serves both windows: the capture overlay and Klik Studio.
+function windowLabel(): string {
+  if (!inTauri) return "";
+  try {
+    return getCurrentWindow().label;
+  } catch {
+    return "";
+  }
+}
+const isStudio = new URLSearchParams(location.search).has("studio") || windowLabel() === "studio";
+
+if (isStudio) document.documentElement.classList.add("studio-page");
+
+createRoot(document.getElementById("root")!).render(isStudio ? <Studio /> : <Overlay />);
