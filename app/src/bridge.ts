@@ -39,6 +39,9 @@ export const showOverlay = () => (inTauri ? invoke("show_overlay") : Promise.res
 /** Hide the overlay. `discard` deletes the file saved for this capture. */
 export const close = (discard: boolean) => (inTauri ? invoke("close", { discard }) : Promise.resolve());
 
+/** Hide the overlay and add the saved screenshot as a slide in Klik Studio. */
+export const closeToStudio = () => (inTauri ? invoke("close_to_studio") : Promise.resolve());
+
 /** Copy to the clipboard and save to Pictures\Klik. `rgba` = width, height (u32 LE) + RGBA pixels. */
 export async function saveCopy(rgba: Uint8Array): Promise<string> {
   if (inTauri) return invoke<string>("save_copy", rgba);

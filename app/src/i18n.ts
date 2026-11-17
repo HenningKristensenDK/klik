@@ -22,6 +22,9 @@ const en = {
   done: "Done",
   doneTitle: "Close. The image is already saved and copied  (Esc)",
   toast: "Saved and copied",
+  toStudio: "Studio",
+  toStudioTitle: "Add this screenshot as a slide in Klik Studio  (S)",
+  toastStudio: "Added to Klik Studio",
   studio: {
     titleAria: "Name of the post",
     newPost: "New post",
@@ -129,6 +132,9 @@ const da: typeof en = {
   done: "Færdig",
   doneTitle: "Luk. Billedet er allerede gemt og kopieret  (Esc)",
   toast: "Gemt og kopieret",
+  toStudio: "Studio",
+  toStudioTitle: "Læg dette screenshot ind som slide i Klik Studio  (S)",
+  toastStudio: "Lagt ind i Klik Studio",
   studio: {
     titleAria: "Navn på opslaget",
     newPost: "Nyt opslag",

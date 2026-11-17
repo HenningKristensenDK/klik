@@ -89,6 +89,14 @@ html, body, #root { margin: 0; height: 100%; overflow: hidden; background: #000;
   font-weight: 600; font-size: 14px;
 }
 .done:hover { filter: brightness(0.96); }
+/* Secondary action: same height as Done, but white, so Done stays the one yellow button. */
+.to-studio {
+  display: flex; align-items: center; gap: 6px; height: 38px; padding: 0 8px 0 10px; margin-left: 4px;
+  border-radius: var(--radius-btn); border: 1px solid var(--border) !important; color: var(--text);
+  font-weight: 600; font-size: 14px;
+}
+.to-studio svg { width: 18px; height: 18px; }
+.to-studio kbd { font: 600 11px "Inter", "Segoe UI", sans-serif; padding: 2px 7px; border-radius: 5px; background: rgba(21, 22, 43, 0.06); color: var(--text); }
 .done kbd { background: rgba(21, 22, 43, 0.1); color: var(--text); }
 
 .toast {

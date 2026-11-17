@@ -9,6 +9,7 @@ Klik grows one feature at a time, each as a new version. Ideas and votes: [issue
 - **Klik Studio:** turn screenshots into a 4:5 LinkedIn carousel or 16:9 slides, exported as PDF + PNG. Claude can draft the story.
 - English, and Danish when Windows runs in Danish.
 - 0.2.1: everything Klik saves is in `Pictures\Klik` (screenshots, `Inbox`, `Studio`), never in Documents. Files are named `Klik 2026.11.17 19.30 001.png`, numbered through the day.
+- 0.2.2: a "Studio" button (key `S`) in the editor turns the screenshot you just took into a slide in Klik Studio. One click instead of three on a hidden tray icon.
 
 ## Next
 - **Microsoft Store:** one-click install, signed, automatic updates.

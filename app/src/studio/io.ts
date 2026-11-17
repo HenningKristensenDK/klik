@@ -1,6 +1,7 @@
 // Klik Studio <-> Rust core. In a plain browser (dev/test) it uses demo screenshots.
 
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { inTauri } from "../bridge";
 
 export type Capture = { name: string; modified: number };
@@ -32,6 +33,26 @@ export async function saveExport(folder: string, file: string, bytes: Uint8Array
 }
 
 export const openExports = (folder: string) => (inTauri ? invoke("open_exports", { folder }) : Promise.resolve());
+
+/**
+ * The editor's Studio button sends the name of the screenshot it saved.
+ * In a plain browser, a test can send one with
+ * `window.dispatchEvent(new CustomEvent("klik-add-shot", { detail: name }))`.
+ */
+export function onAddShot(cb: (name: string) => void): () => void {
+  if (!inTauri) {
+    const h = (e: Event) => cb(String((e as CustomEvent).detail));
+    window.addEventListener("klik-add-shot", h);
+    return () => window.removeEventListener("klik-add-shot", h);
+  }
+  let off = () => {};
+  let gone = false;
+  listen<string>("add-shot", (e) => cb(e.payload)).then((u) => (gone ? u() : (off = u)));
+  return () => {
+    gone = true;
+    off();
+  };
+}
 
 /** Fake product screens so the content maker can be developed in a browser. */
 async function demoImage(name: string): Promise<Blob> {

@@ -27,6 +27,12 @@ const P: Record<string, React.ReactNode> = {
   ),
   close: <path d="M6 6l12 12M18 6L6 18" />,
   check: <path d="M5 12.5l4.5 4.5L19 7" />,
+  studio: (
+    <>
+      <rect x="7" y="3.5" width="13" height="16" rx="2" />
+      <path d="M4 7v12.5a2 2 0 002 2h9" />
+    </>
+  ),
 };
 
 export function Icon({ name }: { name: string }) {
