@@ -1,7 +1,7 @@
 # Klik: product specification
 
-Version 0.8, 2026.11.17. Owner: Henning Kristensen (RTPM).
-"Klik" is a working name.
+Version 0.9, 2026.11.17. Owner: Henning Kristensen (RTPM).
+The name Klik is decided (2026.11.17).
 
 This spec records Henning's wishes for a simple screen capture tool that covers the most-used Snagit features with far fewer clicks. Each requirement says where it stands: **Built** (code exists and was tested in a browser, not yet on Windows), **Planned**, or **Open** (a decision is still needed). What comes next is in `ROADMAP.md`.
 
@@ -163,7 +163,7 @@ The problem: a result from one AI session (chat, Project, Claude Code) is copied
 | `handoff_list` | Lists the inbox, newest first |
 | `handoff_read` | The next session reads a handoff in full |
 
-- Stored as plain Markdown and image files in `Documents\Klik\Inbox\`, so people and other tools can read them too.
+- Stored as plain Markdown and image files in `Pictures\Klik\Inbox\`, so people and other tools can read them too.
 - The tray menu opens the inbox folder (Built). Showing the count is Planned.
 - Henning's `session-handoff` skill writes its brief to the inbox when Klik is connected, instead of a copy-paste block. The skill change is proposed; Henning approves it (not changed yet).
 - (Could) A hotkey saves the clipboard text to the inbox, for AI tools without MCP.
@@ -220,7 +220,7 @@ A second window of Klik, ported from the separate Klik Content app (old repo, PR
 
 *Two brands, kept apart:* the Studio window uses the RTPM **product** brand like the rest of Klik (Inter, light, tokens in `app/src/styles.css`). The slides use the RTPM **content** brand (Barlow Semi Condensed + Inter, navy and paper grounds); those tokens live only in `app/src/studio/render.ts` and are used only on slide canvases.
 
-**S6. Export (C5): Built.** One PDF (`Carousel.pdf` or `Slides.pdf`, Danish names on Danish Windows) plus one PNG per slide in `Documents\Klik\Studio\<date> <title> <format>\`. The folder opens when done. A person always presses Export.
+**S6. Export (C5): Built.** One PDF (`Carousel.pdf` or `Slides.pdf`, Danish names on Danish Windows) plus one PNG per slide in `Pictures\Klik\Studio\<date> <title> <format>\`. The folder opens when done. A person always presses Export.
 
 **S7. Claude writes the story (C6): Built, untested with Claude Desktop.** The user writes the audience and angle and copies a brief to Claude Desktop. With the Klik connector, Claude looks at the screenshots and saves a draft with `handoff_write`: a fenced `klik-deck` JSON block (format, title, angle, slides). Studio lists drafts from the inbox and loads one with one click; without the connector the user can paste Claude's JSON. Claude never edits screenshots or files.
 
@@ -253,7 +253,7 @@ These targets are the pass/fail test. Henning does each task in Snagit and in Kl
 - **Platform:** Windows 11 first. Mac is out of scope for now.
 - **Speed (targets, not yet measured):** editor visible in under 0.3 seconds after the hotkey, and Esc to clipboard in under 0.5 seconds on a 4K monitor.
 - **Screens:** several monitors with different scaling must work. The capture follows the mouse.
-- **Storage:** `Pictures\Klik\`, with file names `Klik YYYY-MM-DD HHMMSS.png`.
+- **Storage (Built, 0.2.1):** everything Klik saves is under `Pictures\Klik\`: screenshots in the folder itself, handoffs in `Inbox\`, Studio exports in `Studio\`. Klik never writes to Documents, because on a work PC that folder is often redirected to a client or project folder (found on Henning's PC 2026.11.17). File names are `Klik YYYY.MM.DD HH.MM NNN.png`, for example `Klik 2026.11.17 19.30 001.png`; NNN counts up through the day. A dot separates hours and minutes because Windows does not allow a colon in a file name. Older files named `Klik YYYY-MM-DD HHMMSS.png` are still read. A handoff inbox left in `Documents\Klik\Inbox` by 0.2.0 is not moved.
 - **Privacy:** no telemetry. No network calls except F9 and F15, and only when the user starts them. Klik Studio (F16) makes no network calls; Claude only sees what the user's own Claude connection asks for.
 - **Language:** English user interface, and Danish when Windows runs in Danish (decided 2026.11.17). Few words, so keeping both costs little.
 - **Install:** no admin rights needed.

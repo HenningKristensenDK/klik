@@ -4,7 +4,7 @@
   "display_name": "Klik",
   "version": "0.1.0",
   "description": "Lets Claude see your Klik screenshots and pass work between sessions through a local inbox. No copy-paste.",
-  "long_description": "Klik is a simple screenshot tool for Windows. This extension lets Claude read your latest screenshots, and gives every Claude session a shared handoff inbox on your PC, so a result from one session can be picked up by the next without copy-paste. Everything stays on your PC: screenshots are read from Pictures\\Klik, and handoffs are plain Markdown files in Documents\\Klik\\Inbox.",
+  "long_description": "Klik is a simple screenshot tool for Windows. This extension lets Claude read your latest screenshots, and gives every Claude session a shared handoff inbox on your PC, so a result from one session can be picked up by the next without copy-paste. Everything stays on your PC: screenshots are read from Pictures\\Klik, and handoffs are plain Markdown files in Pictures\\Klik\\Inbox.",
   "author": { "name": "RTPM" },
   "icon": "icon.png",
   "server": {
@@ -30,7 +30,7 @@
     "inbox_dir": {
       "type": "directory",
       "title": "Inbox folder",
-      "description": "Where handoffs are stored. Leave empty for Documents\\Klik\\Inbox. Pick a OneDrive folder to reach the inbox from other devices.",
+      "description": "Where handoffs are stored. Leave empty for Pictures\\Klik\\Inbox. Pick a OneDrive folder to reach the inbox from other devices.",
       "required": false
     }
   },

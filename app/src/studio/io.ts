@@ -19,7 +19,7 @@ export async function readCapture(name: string): Promise<Blob> {
   return new Blob([buf], { type: "image/png" });
 }
 
-/** Writes one export file to Documents\Klik\Studio\<folder>\<file>. Returns the folder path. */
+/** Writes one export file to Pictures\Klik\Studio\<folder>\<file>. Returns the folder path. */
 export async function saveExport(folder: string, file: string, bytes: Uint8Array): Promise<string> {
   if (!inTauri) {
     const w = window as unknown as { __exports?: { folder: string; file: string; size: number }[] };

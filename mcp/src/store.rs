@@ -2,7 +2,10 @@
 //!
 //! Everything is plain files so people and other tools can read them too:
 //! - captures: `Pictures\Klik\*.png` (written by the Klik app)
-//! - inbox:    `Documents\Klik\Inbox\*.md` (+ an optional image per handoff)
+//! - inbox:    `Pictures\Klik\Inbox\*.md` (+ an optional image per handoff)
+//!
+//! Nothing is kept in Documents: on a work PC that folder is often redirected
+//! to a client or project folder.
 
 use std::fs;
 use std::io::Cursor;
@@ -61,12 +64,10 @@ fn env_dir(key: &str) -> Option<PathBuf> {
 impl Store {
     pub fn from_env() -> Self {
         let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
-        let captures = env_dir("KLIK_CAPTURES_DIR").unwrap_or_else(|| {
-            dirs::picture_dir().unwrap_or_else(|| home.join("Pictures")).join("Klik")
-        });
-        let inbox = env_dir("KLIK_INBOX_DIR").unwrap_or_else(|| {
-            dirs::document_dir().unwrap_or_else(|| home.join("Documents")).join("Klik").join("Inbox")
-        });
+        // The same folder the Klik app uses, whatever KLIK_CAPTURES_DIR says.
+        let klik = dirs::picture_dir().unwrap_or_else(|| home.join("Pictures")).join("Klik");
+        let captures = env_dir("KLIK_CAPTURES_DIR").unwrap_or_else(|| klik.clone());
+        let inbox = env_dir("KLIK_INBOX_DIR").unwrap_or_else(|| klik.join("Inbox"));
         Store { captures, inbox }
     }
 
@@ -312,6 +313,17 @@ mod tests {
         fs::write(s.captures.join("notes.txt"), "x").unwrap();
         assert_eq!(s.latest_capture().unwrap().id, "Klik 2026-11-15 110000.png");
         assert_eq!(s.captures(10).len(), 2);
+    }
+
+    #[test]
+    fn new_capture_names_and_inbox_subfolder() {
+        let (_t, s) = store();
+        // The inbox may sit inside the captures folder; it is not a capture.
+        fs::create_dir_all(s.captures.join("Inbox")).unwrap();
+        png(&s.captures.join("Klik 2026.11.17 19.30 001.png"), 10, 10);
+        assert_eq!(s.latest_capture().unwrap().id, "Klik 2026.11.17 19.30 001.png");
+        assert_eq!(s.capture("Klik 2026.11.17 19.30 001.png").unwrap().bytes > 0, true);
+        assert_eq!(s.captures(10).len(), 1);
     }
 
     #[test]

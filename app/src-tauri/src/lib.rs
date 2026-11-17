@@ -121,10 +121,28 @@ fn show_overlay(window: WebviewWindow) -> Result<(), String> {
     Ok(())
 }
 
+/// Pictures\Klik: the screenshots, plus the Inbox and Studio subfolders.
+/// Klik writes nowhere else. Documents is left alone on purpose: on a work PC
+/// it is often redirected to a client or project folder.
 fn output_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = app.path().picture_dir().map_err(err)?.join("Klik");
     std::fs::create_dir_all(&dir).map_err(err)?;
     Ok(dir)
+}
+
+/// File name for a new capture: `Klik 2026.11.17 19.30 001.png`. The number
+/// counts up through the day: one more than the highest number already used
+/// by a capture with the same date. `existing` = the file names in the folder.
+fn capture_name(existing: impl Iterator<Item = String>, now: chrono::NaiveDateTime) -> String {
+    let day = now.format("Klik %Y.%m.%d ").to_string();
+    let last = existing
+        .filter_map(|n| {
+            let stem = n.strip_prefix(day.as_str())?.strip_suffix(".png")?;
+            stem.rsplit(' ').next()?.parse::<u32>().ok()
+        })
+        .max()
+        .unwrap_or(0);
+    format!("{day}{} {:03}.png", now.format("%H.%M"), last + 1)
 }
 
 /// Copies the current image to the clipboard, then saves it as PNG.
@@ -162,8 +180,12 @@ fn save_copy(app: AppHandle, request: Request<'_>) -> Result<String, String> {
     let path = match current.as_ref() {
         Some(p) => p.clone(),
         None => {
-            let name = chrono::Local::now().format("Klik %Y-%m-%d %H%M%S.png").to_string();
-            let p = output_dir(&app)?.join(name);
+            let dir = output_dir(&app)?;
+            let names = std::fs::read_dir(&dir)
+                .map_err(err)?
+                .flatten()
+                .filter_map(|e| e.file_name().into_string().ok());
+            let p = dir.join(capture_name(names, chrono::Local::now().naive_local()));
             *current = Some(p.clone());
             p
         }
@@ -195,7 +217,7 @@ fn close(app: AppHandle, window: WebviewWindow, discard: bool) -> Result<(), Str
 fn inbox_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = match std::env::var("KLIK_INBOX_DIR") {
         Ok(v) if !v.trim().is_empty() => PathBuf::from(v.trim()),
-        _ => app.path().document_dir().map_err(err)?.join("Klik").join("Inbox"),
+        _ => output_dir(app)?.join("Inbox"),
     };
     std::fs::create_dir_all(&dir).map_err(err)?;
     Ok(dir)
@@ -212,7 +234,7 @@ fn open_dir(dir: Result<PathBuf, String>) {
 
 // ---------- Klik Studio ----------
 // Studio only reads Pictures\Klik and the handoff inbox, and only writes to
-// Documents\Klik\Studio. Every name it sends is checked by `safe_name`.
+// Pictures\Klik\Studio. Every name it sends is checked by `safe_name`.
 
 /// A screenshot in Pictures\Klik.
 #[derive(serde::Serialize)]
@@ -268,9 +290,9 @@ fn read_capture(app: AppHandle, name: String) -> Result<Response, String> {
     Ok(Response::new(std::fs::read(path).map_err(err)?))
 }
 
-/// Documents\Klik\Studio, where carousels and slides are exported.
+/// Pictures\Klik\Studio, where carousels and slides are exported.
 fn exports_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = app.path().document_dir().map_err(err)?.join("Klik").join("Studio");
+    let dir = output_dir(app)?.join("Studio");
     std::fs::create_dir_all(&dir).map_err(err)?;
     Ok(dir)
 }
@@ -388,6 +410,21 @@ mod studio_tests {
             assert!(safe_name(bad).is_err(), "{bad}");
         }
         assert_eq!(safe_name(" Klik 2026-11-17 101500.png ").unwrap(), "Klik 2026-11-17 101500.png");
+        assert_eq!(safe_name("Klik 2026.11.17 19.30 001.png").unwrap(), "Klik 2026.11.17 19.30 001.png");
+    }
+
+    #[test]
+    fn capture_names_count_up_through_the_day() {
+        let at = |h, m| chrono::NaiveDate::from_ymd_opt(2026, 11, 17).unwrap().and_hms_opt(h, m, 5).unwrap();
+        let names = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>().into_iter();
+
+        assert_eq!(capture_name(names(&[]), at(9, 5)), "Klik 2026.11.17 09.05 001.png");
+        // Yesterday's files and the old name format do not count.
+        let old = ["Klik 2026.11.16 23.59 007.png", "Klik 2026-11-17 101500.png", "notes.txt"];
+        assert_eq!(capture_name(names(&old), at(9, 5)), "Klik 2026.11.17 09.05 001.png");
+        // One more than the highest number today, also after a deleted capture.
+        let today = ["Klik 2026.11.17 09.05 001.png", "Klik 2026.11.17 09.06 003.png"];
+        assert_eq!(capture_name(names(&today), at(19, 30)), "Klik 2026.11.17 19.30 004.png");
     }
 
     #[test]
