@@ -26,6 +26,11 @@ html.studio-page, html.studio-page body, html.studio-page #root { background: #f
 .seg { display: flex; background: var(--indigo-050); border-radius: var(--radius-btn); padding: 3px; margin-left: auto; }
 .seg button { border: 0; background: none; padding: 7px 14px; border-radius: 7px; color: var(--text-2); font-weight: 500; }
 .seg button.on { background: var(--indigo); color: #fff; }
+/* Language: a setting, not a task, so it stays quiet. */
+.lang { display: flex; gap: 2px; }
+.lang button { border: 0; background: none; padding: 4px 5px; font-size: 12px; font-weight: 500; color: var(--muted); border-radius: 5px; }
+.lang button.on { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
+.lang button:hover { color: var(--indigo); }
 .primary { border: 0; background: var(--yellow); color: var(--text); font-weight: 600; padding: 9px 16px; border-radius: var(--radius-btn); white-space: nowrap; }
 .primary:hover { background: #f2c200; }
 .primary:disabled, .accent:disabled { opacity: 0.5; cursor: default; }

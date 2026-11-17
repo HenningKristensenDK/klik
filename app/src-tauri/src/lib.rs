@@ -570,9 +570,11 @@ fn setup_tray(app: &AppHandle, hotkey: Option<&str>) -> tauri::Result<()> {
     let sep2 = PredefinedMenuItem::separator(app)?;
     let quit = MenuItem::with_id(app, "quit", tr("Quit Klik", "Afslut Klik"), true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&shot, &key, &sep2, &studio, &exports, &folder, &inbox, &sep, &quit])?;
+    // Left-click opens Studio: screenshots start from the hotkey, so the icon
+    // is the way into Studio. Right-click shows the menu, screenshot included.
     let tooltip = match hotkey {
-        Some(k) => format!("Klik  -  {} {k}", tr("click here or press", "klik her eller tryk")),
-        None => format!("Klik  -  {}", tr("click here for a screenshot", "klik her for screenshot")),
+        Some(k) => format!("Klik  -  {}  ·  {k}: {}", tr("click for Studio", "klik for Studio"), tr("screenshot", "screenshot")),
+        None => format!("Klik  -  {}", tr("click for Studio, right-click for a screenshot", "klik for Studio, højreklik for screenshot")),
     };
 
     TrayIconBuilder::with_id("klik")
@@ -596,7 +598,7 @@ fn setup_tray(app: &AppHandle, hotkey: Option<&str>) -> tauri::Result<()> {
                 ..
             } = e
             {
-                capture_async(tray.app_handle());
+                open_studio(tray.app_handle());
             }
         })
         .build(app)?;

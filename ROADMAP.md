@@ -11,6 +11,7 @@ Klik grows one feature at a time, each as a new version. Ideas and votes: [issue
 - 0.2.1: everything Klik saves is in `Pictures\Klik` (screenshots, `Inbox`, `Studio`), never in Documents. Files are named `Klik 2026.11.17 19.30 001.png`, numbered through the day.
 - 0.2.2: a "Studio" button (key `S`) in the editor turns the screenshot you just took into a slide in Klik Studio. One click instead of three on a hidden tray icon.
 - 0.2.3: in Studio's gallery, click a screenshot to add it as a slide, or click its pencil to add more markings in the editor. The slide updates by itself.
+- 0.2.4: click the tray icon to open Klik Studio (screenshots start from the hotkey). New blue and white app icon.
 
 ## Next
 - **Microsoft Store:** one-click install, signed, automatic updates.
