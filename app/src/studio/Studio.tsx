@@ -2,7 +2,7 @@
 // (demo or user walkthrough), exported as PDF + PNG. A window of the Klik app.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { t } from "../i18n";
+import { lang, setLang, t } from "../i18n";
 import { DEFAULT_PROFILE, drawSlide, loadFonts, SIZE, textIssues, type Assets, type Format, type Issue, type Kind, type Profile, type Slide } from "./render";
 import { editCapture, listCaptures, listClaudeDrafts, onAddShot, onCaptureSaved, openExports, readCapture, type Capture, type ClaudeDraft } from "./io";
 import { exportDeck } from "./export";
@@ -350,6 +350,14 @@ export function Studio() {
         <div className="seg" role="tablist" aria-label="Format">
           <button className={fmt === "4x5" ? "on" : ""} onClick={() => setFmt("4x5")}>{t.studio.fmt4x5}</button>
           <button className={fmt === "16x9" ? "on" : ""} onClick={() => setFmt("16x9")}>{t.studio.fmt16x9}</button>
+        </div>
+        {/* Language of Klik's own texts. The deck is saved, so reloading loses nothing. */}
+        <div className="seg lang" role="group" aria-label="Language / Sprog">
+          {(["en", "da"] as const).map((l) => (
+            <button key={l} className={lang === l ? "on" : ""} aria-pressed={lang === l} onClick={() => { if (l !== lang) { setLang(l); location.reload(); } }}>
+              {l.toUpperCase()}
+            </button>
+          ))}
         </div>
         <button className="ghost" onClick={() => { setClaudeOpen((o) => !o); refresh(); }}>{t.studio.claude}{drafts.length ? t.studio.drafts(drafts.length) : ""}</button>
         <button className="primary" disabled={!!busy || !ready} onClick={doExport}>{busy || t.studio.exportBtn}</button>

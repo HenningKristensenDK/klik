@@ -405,7 +405,7 @@ export function Overlay() {
             {s.status === "error" && t.copyFailed}
           </span>
           <button className="to-studio" title={t.toStudioTitle} onClick={toStudio}>
-            <Icon name="studio" /> {t.toStudio} <kbd>S</kbd>
+            <Icon name="studio" /> {t.toStudio}
           </button>
           <button className="done" title={t.doneTitle} onClick={done}>
             {t.done} <kbd>Esc</kbd>

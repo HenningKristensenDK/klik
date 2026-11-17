@@ -223,5 +223,28 @@ const da: typeof en = {
   },
 };
 
-const lang = (navigator.languages?.[0] ?? navigator.language ?? "en").toLowerCase();
-export const t = lang.startsWith("da") ? da : en;
+export type Lang = "en" | "da";
+
+const LANG_KEY = "klik-lang";
+
+function stored(): Lang | null {
+  try {
+    const v = localStorage.getItem(LANG_KEY);
+    return v === "en" || v === "da" ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The user's choice from Studio's EN/DA switch, else the Windows language. */
+export const lang: Lang = stored() ?? ((navigator.languages?.[0] ?? navigator.language ?? "en").toLowerCase().startsWith("da") ? "da" : "en");
+export const t = lang === "da" ? da : en;
+
+/** Saves the choice; both Klik windows read it the next time they load. */
+export function setLang(next: Lang) {
+  try {
+    localStorage.setItem(LANG_KEY, next);
+  } catch {
+    /* storage blocked: the choice lasts until the window reloads */
+  }
+}
