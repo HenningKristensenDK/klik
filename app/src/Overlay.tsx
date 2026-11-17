@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useReducer, useRef } from "react";
-import { close, hotkeyLabel, inTauri, loadShot, onCaptured, saveCopy, showOverlay, type Shot } from "./bridge";
+import { close, closeToStudio, hotkeyLabel, inTauri, loadShot, onCaptured, saveCopy, showOverlay, type Shot } from "./bridge";
 import { CALLOUT, calloutLayout, exportRgba, normRect, render, type Pt, type Rect, type Shape, type Tool } from "./draw";
 import { Icon } from "./icons";
 import { t } from "./i18n";
@@ -136,20 +136,29 @@ export function Overlay() {
     scheduleSave();
   }, [paint, scheduleSave]);
 
-  /** Esc / Enter / Færdig: everything is already copied; make sure the last change is too, then close. */
-  const done = useCallback(async () => {
-    const s = st.current;
-    if (s.busy || !s.sel || !shot.current) return;
-    if (s.editing !== null) commitText();
-    s.busy = true;
-    if (saveTimer.current !== undefined) await saveNow();
-    await saving.current;
-    s.mode = "idle";
-    s.toast = t.toast;
-    rerender();
-    await close(false);
-    s.busy = false;
-  }, [saveNow, commitText]);
+  /**
+   * Esc / Enter / Færdig: everything is already copied; make sure the last
+   * change is too, then close. With `studio`, the saved file also becomes a
+   * slide in Klik Studio, which opens.
+   */
+  const finish = useCallback(
+    async (studio: boolean) => {
+      const s = st.current;
+      if (s.busy || !s.sel || !shot.current) return;
+      if (s.editing !== null) commitText();
+      s.busy = true;
+      if (saveTimer.current !== undefined) await saveNow();
+      await saving.current;
+      s.mode = "idle";
+      s.toast = studio ? t.toastStudio : t.toast;
+      rerender();
+      await (studio ? closeToStudio() : close(false));
+      s.busy = false;
+    },
+    [saveNow, commitText],
+  );
+  const done = useCallback(() => finish(false), [finish]);
+  const toStudio = useCallback(() => finish(true), [finish]);
 
   /** Kassér: close and delete the file saved for this capture. */
   const abort = useCallback(async () => {
@@ -259,6 +268,7 @@ export function Overlay() {
       } else if (s.mode !== "edit") return;
       else if (key === "enter" || (e.ctrlKey && key === "c")) done();
       else if (e.ctrlKey && key === "z") undo();
+      else if (key === "s" && !e.ctrlKey && !e.altKey) toStudio();
       else if (!e.ctrlKey && !e.altKey) {
         const t = TOOLS.find((x) => x.key.toLowerCase() === key);
         if (t) setTool(t.id);
@@ -266,7 +276,7 @@ export function Overlay() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [done, abort]);
+  }, [done, abort, toStudio]);
 
   const setText = (text: string) => {
     const s = st.current;
@@ -392,6 +402,9 @@ export function Overlay() {
             {s.status === "saving" && t.copying}
             {s.status === "error" && t.copyFailed}
           </span>
+          <button className="to-studio" title={t.toStudioTitle} onClick={toStudio}>
+            <Icon name="studio" /> {t.toStudio} <kbd>S</kbd>
+          </button>
           <button className="done" title={t.doneTitle} onClick={done}>
             {t.done} <kbd>Esc</kbd>
           </button>

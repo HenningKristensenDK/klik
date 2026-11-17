@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { t } from "../i18n";
 import { DEFAULT_PROFILE, drawSlide, loadFonts, SIZE, textIssues, type Assets, type Format, type Issue, type Kind, type Profile, type Slide } from "./render";
-import { listCaptures, listClaudeDrafts, openExports, readCapture, type Capture, type ClaudeDraft } from "./io";
+import { listCaptures, listClaudeDrafts, onAddShot, openExports, readCapture, type Capture, type ClaudeDraft } from "./io";
 import { exportDeck } from "./export";
 
 const STORE = "klik-studio-v1";
@@ -190,6 +190,25 @@ export function Studio() {
     });
     setSel(s.id);
   };
+
+  // The editor's Studio button: the screenshot just taken becomes a slide.
+  useEffect(
+    () =>
+      onAddShot(async (name) => {
+        try {
+          const blob = await readCapture(name);
+          assets.current.shots.set(name, await createImageBitmap(blob));
+          setThumbs((t) => ({ ...t, [name]: URL.createObjectURL(blob) }));
+        } catch {
+          return; // the file is gone; add nothing
+        }
+        insertBeforeCloser(blank("shot", name));
+        refresh();
+      }),
+    // insertBeforeCloser only uses state setters, so the listener stays valid.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [refresh],
+  );
 
   const move = (d: -1 | 1) =>
     setSlides((all) => {

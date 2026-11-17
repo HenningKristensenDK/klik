@@ -213,6 +213,20 @@ fn close(app: AppHandle, window: WebviewWindow, discard: bool) -> Result<(), Str
     Ok(())
 }
 
+/// The editor's Studio button: hide the overlay, open Klik Studio and add the
+/// screenshot just saved as a slide. The file is kept, as with `close`.
+#[tauri::command]
+fn close_to_studio(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
+    window.hide().map_err(err)?;
+    app.state::<Shot>().0.lock().unwrap().take();
+    let saved = app.state::<CurrentFile>().0.lock().unwrap().take();
+    open_studio(&app);
+    if let Some(name) = saved.as_ref().and_then(|p| p.file_name()).and_then(|n| n.to_str()) {
+        app.emit_to(STUDIO, "add-shot", name).map_err(err)?;
+    }
+    Ok(())
+}
+
 /// The handoff inbox shared with Claude through klik-mcp (same default path).
 fn inbox_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = match std::env::var("KLIK_INBOX_DIR") {
@@ -530,6 +544,7 @@ pub fn run() {
             show_overlay,
             save_copy,
             close,
+            close_to_studio,
             frontend_ready,
             hotkey_label,
             list_captures,

@@ -1,6 +1,6 @@
 # Klik: product specification
 
-Version 0.9, 2026.11.17. Owner: Henning Kristensen (RTPM).
+Version 0.10, 2026.11.17. Owner: Henning Kristensen (RTPM).
 The name Klik is decided (2026.11.17).
 
 This spec records Henning's wishes for a simple screen capture tool that covers the most-used Snagit features with far fewer clicks. Each requirement says where it stands: **Built** (code exists and was tested in a browser, not yet on Windows), **Planned**, or **Open** (a decision is still needed). What comes next is in `ROADMAP.md`.
@@ -203,7 +203,9 @@ Klik turns one rough demo recording (F6, F7, F8) into finished LinkedIn content,
 
 A second window of Klik, ported from the separate Klik Content app (old repo, PR #4 and #5) so all of Klik is one app and one installer. Requirement numbers S1 to S7 carry over Klik Content's C1 to C8.
 
-**S1. One app (was C1, "separate app"): Built.** Studio is a window of Klik, opened from the tray menu ("Klik Studio: make a carousel or slides"). It reuses Klik's screenshot folder `Pictures\Klik`, the MCP server (F13) and the handoff inbox (F14). Opening Studio is never a step in capture, so the click budget (section 4) is unchanged.
+**S1. One app (was C1, "separate app"): Built.** Studio is a window of Klik. It reuses Klik's screenshot folder `Pictures\Klik`, the MCP server (F13) and the handoff inbox (F14). Two ways in:
+- From the editor (Built, 0.2.2): the "Studio" button (key `S`) next to "Done" closes the editor, opens Studio and adds the screenshot just taken, with its markings, as a new slide. One click. The button is white, so "Done" stays the one yellow action, and it is never needed in the normal capture flow, so the click budget for tasks 1 and 2 (section 4) is unchanged. Reason for the new button: Windows hides new tray icons, so the only other way in took three clicks on a hidden icon (found in Henning's test 2026.11.17).
+- From the tray menu: "Klik Studio: make a carousel or slides", to work on a deck without a new screenshot.
 
 **S2. Studio window (C2): Built.** Recent screenshots from `Pictures\Klik` (newest 60); one click adds a screenshot slide. Slide kinds: cover (dark), screenshot (light), rule (light), text (light), closer (dark). A rule slide gets "Rule n of N" and the big indigo number automatically, a body with one indigo span, and an "In practice" line. Per slide: tag, headline, highlight, body, screenshot. Reorder, delete, add rule or text slide. The deck is saved automatically on the PC.
 
@@ -247,6 +249,7 @@ These targets are the pass/fail test. Henning does each task in Snagit and in Kl
 | 10-step guide | hotkey → your 10 clicks → hotkey | 0 extra clicks |
 | Video with indigo cursor | hotkey → drag → … → hotkey | 1 drag |
 | Long page | hotkey → click in window | 1 click |
+| Screenshot as a Studio slide | `Ctrl+Alt+K` → drag → markings → `S` | 1 drag, 0 clicks (or 1 click on "Studio") |
 
 ## 5. Non-functional requirements
 
