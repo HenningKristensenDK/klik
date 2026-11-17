@@ -3,7 +3,7 @@
 Version 0.7, 2026.11.16. Owner: Henning Kristensen (RTPM).
 "Klik" is a working name.
 
-This spec records Henning's wishes for a simple screen capture tool that covers the most-used Snagit features with far fewer clicks. Each requirement says where it stands: **Built** (code exists and was tested in a browser, not yet on Windows), **Planned**, or **Open** (a decision is still needed). How the tool gets built is in `PLAN.md`.
+This spec records Henning's wishes for a simple screen capture tool that covers the most-used Snagit features with far fewer clicks. Each requirement says where it stands: **Built** (code exists and was tested in a browser, not yet on Windows), **Planned**, or **Open** (a decision is still needed). What comes next is in `ROADMAP.md`.
 
 ## 1. Purpose
 
@@ -134,7 +134,7 @@ Priority: **Must** = MVP, **Should** = next release, **Could** = later.
 
 | Channel | Status |
 |---|---|
-| Windows installer built by GitHub Actions, current user only, no admin rights | Built. First build succeeded 2026.11.13; installer not yet tried on a PC |
+| Windows installer built by GitHub Actions, published as a GitHub Release on each version tag, current user only, no admin rights | Built. First build succeeded 2026.11.13; installer not yet tried on a PC |
 | Microsoft Store (free registration, Microsoft signs the app, no SmartScreen warning) | Planned. Tauri does not produce MSIX by itself; the packaging step is not yet tested. |
 | Chrome Web Store browser extension | **Dropped** 2026.11.15: Klik is a standalone desktop app |
 
@@ -196,7 +196,7 @@ These targets are the pass/fail test. Henning does each task in Snagit and in Kl
 - **Screens:** several monitors with different scaling must work. The capture follows the mouse.
 - **Storage:** `Pictures\Klik\`, with file names `Klik YYYY-MM-DD HHMMSS.png`.
 - **Privacy:** no telemetry. No network calls except F9, and only when the user starts it.
-- **Language:** Danish user interface in v1. Whether English comes later is open (Q4).
+- **Language:** English user interface, and Danish when Windows runs in Danish (decided 2026.11.17). Few words, so keeping both costs little.
 - **Install:** no admin rights needed.
 
 ## 6. Out of scope for the MVP
@@ -211,13 +211,13 @@ Klik copies Snagit's ideas, not its code or look. It is built from public descri
 
 | # | Question | Why it matters |
 |---|---|---|
-| Q1 | Is Klik a product to sell, or an internal tool for Henning and the RTPM team? | Decides store, branding, support and how far to polish |
+| Q1 | ~~Product to sell, or internal tool?~~ Decided 2026.11.17: free and open source (MIT) for anyone, to show what RTPM can do | - |
 | Q2 | ~~Chrome extension or Windows app first?~~ Decided 2026.11.15: standalone Windows app only | - |
 | Q3 | Highlighter: was "marker" meant as a yellow highlighter (built) or a red pen? | The default tool |
-| Q4 | Danish only, or Danish and English? | Needed for the store, and for clients outside Denmark |
+| Q4 | ~~Danish only, or Danish and English?~~ Decided 2026.11.17: English, plus Danish on Danish Windows | - |
 | Q5 | Whose Claude account pays for F9, and where do client guides get stored (local folder, SharePoint)? | Cost and client data rules |
 | Q6 | Do most of Henning's AI sessions run in Claude Desktop and Claude Code on the PC, or in the browser and on the phone? | F13 and F14 only work locally without the Drive bridge |
 
 ## 9. Source of these wishes
 
-Henning's messages in the Claude Code session of 2026.11.13–15. Snagit feature research: `PLAN.md`, section 2.
+Henning's messages in the Claude Code sessions of 2026.11.13–17. The earlier build plan and Snagit research are in the history of `PLAN.md` (removed when Klik moved to this repo).

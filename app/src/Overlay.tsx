@@ -2,6 +2,7 @@ import { useCallback, useEffect, useReducer, useRef } from "react";
 import { close, hotkeyLabel, inTauri, loadShot, onCaptured, saveCopy, showOverlay, type Shot } from "./bridge";
 import { CALLOUT, calloutLayout, exportRgba, normRect, render, type Pt, type Rect, type Shape, type Tool } from "./draw";
 import { Icon } from "./icons";
+import { t } from "./i18n";
 
 type Mode = "idle" | "select" | "edit";
 
@@ -15,11 +16,11 @@ const DEFAULT_COLORS: Record<Tool, string> = {
   callout: "#0d08d2",
 };
 const TOOLS: { id: Tool; key: string; label: string }[] = [
-  { id: "highlight", key: "M", label: "Marker" },
-  { id: "arrow", key: "A", label: "Pil med nummer" },
-  { id: "callout", key: "K", label: "Pil med kommentar" },
-  { id: "pen", key: "P", label: "Frihånd" },
-  { id: "line", key: "L", label: "Linje" },
+  { id: "highlight", key: "M", label: t.highlight },
+  { id: "arrow", key: "A", label: t.arrow },
+  { id: "callout", key: "K", label: t.callout },
+  { id: "pen", key: "P", label: t.pen },
+  { id: "line", key: "L", label: t.line },
 ];
 
 export function Overlay() {
@@ -144,7 +145,7 @@ export function Overlay() {
     if (saveTimer.current !== undefined) await saveNow();
     await saving.current;
     s.mode = "idle";
-    s.toast = "Gemt og kopieret";
+    s.toast = t.toast;
     rerender();
     await close(false);
     s.busy = false;
@@ -302,10 +303,10 @@ export function Overlay() {
 
       {s.mode === "select" && !s.start && (
         <div className="hint">
-          <b>Træk</b> for at markere &nbsp;·&nbsp; <b>Klik</b> = hele skærmen &nbsp;·&nbsp; <b>Esc</b> = annullér
+          <b>{t.hintDrag}</b> {t.hintDragRest} &nbsp;·&nbsp; <b>{t.hintClick}</b> {t.hintClickRest} &nbsp;·&nbsp; <b>Esc</b> {t.hintEscRest}
           {hotkey.current && (
             <div className="hint-key">
-              Næste gang: tryk <kbd>{hotkey.current}</kbd>
+              {t.hintNext} <kbd>{hotkey.current}</kbd>
             </div>
           )}
         </div>
@@ -322,12 +323,12 @@ export function Overlay() {
         (() => {
           const sh = s.shapes[s.editing];
           if (sh?.kind !== "callout") return null;
-          const { box } = calloutLayout(sh.text || "Skriv kommentar", sh.a, kk);
+          const { box } = calloutLayout(sh.text || t.writeComment, sh.a, kk);
           return (
             <textarea
               className="comment"
               autoFocus
-              placeholder="Skriv kommentar"
+              placeholder={t.writeComment}
               value={sh.text}
               style={{
                 left: box.x / kk,
@@ -371,28 +372,28 @@ export function Overlay() {
               key={c}
               className={`swatch ${s.colors[s.tool] === c ? "on" : ""}`}
               style={{ background: c }}
-              title="Farve"
+              title={t.colour}
               onClick={() => setColor(c)}
             />
           ))}
           <span className="sep" />
-          <button className="tool" title="Fortryd  (Ctrl+Z)" disabled={!s.shapes.length} onClick={undo}>
+          <button className="tool" title={t.undo} disabled={!s.shapes.length} onClick={undo}>
             <Icon name="undo" />
           </button>
-          <button className="tool" title="Kassér: slet billedet og luk" onClick={abort}>
+          <button className="tool" title={t.discard} onClick={abort}>
             <Icon name="close" />
           </button>
           <span className={`status ${s.status}`} aria-live="polite">
             {s.status === "saved" && (
               <>
-                <Icon name="check" /> Kopieret
+                <Icon name="check" /> {t.copied}
               </>
             )}
-            {s.status === "saving" && "Kopierer…"}
-            {s.status === "error" && "Kunne ikke kopiere"}
+            {s.status === "saving" && t.copying}
+            {s.status === "error" && t.copyFailed}
           </span>
-          <button className="done" title="Luk. Billedet er allerede gemt og kopieret  (Esc)" onClick={done}>
-            Færdig <kbd>Esc</kbd>
+          <button className="done" title={t.doneTitle} onClick={done}>
+            {t.done} <kbd>Esc</kbd>
           </button>
         </div>
       )}

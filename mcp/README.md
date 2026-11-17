@@ -23,7 +23,7 @@ Folders:
 
 ## Connect
 
-**Claude Desktop:** download `Klik-Claude-extension` from the latest "Klik - Windows build" run on GitHub, unzip it and double-click `Klik.mcpb`. Or: Settings > Extensions > Advanced settings > Install Extension.
+**Claude Desktop:** download `Klik.mcpb` from the [latest release](https://github.com/HenningKristensenDK/klik/releases/latest) and double-click it. Or: Settings > Extensions > Advanced settings > Install Extension.
 
 **Claude Code on your PC** (after installing Klik):
 

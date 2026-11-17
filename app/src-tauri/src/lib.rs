@@ -206,25 +206,32 @@ fn open_dir(dir: Result<PathBuf, String>) {
     }
 }
 
+/// English, or Danish when Windows runs in Danish.
+fn danish() -> bool {
+    sys_locale::get_locale().is_some_and(|l| l.to_lowercase().starts_with("da"))
+}
+
 fn setup_tray(app: &AppHandle, hotkey: Option<&str>) -> tauri::Result<()> {
+    let da = danish();
+    let tr = |en: &str, dk: &str| if da { dk.to_string() } else { en.to_string() };
     let shot_label = match hotkey {
-        Some(k) => format!("Tag screenshot   ({k})"),
-        None => "Tag screenshot".to_string(),
+        Some(k) => format!("{}   ({k})", tr("Take screenshot", "Tag screenshot")),
+        None => tr("Take screenshot", "Tag screenshot"),
     };
     let key_label = match hotkey {
-        Some(k) => format!("Genvejstast: {k}"),
-        None => "Ingen ledig genvejstast. Klik på ikonet i stedet".to_string(),
+        Some(k) => format!("{}: {k}", tr("Hotkey", "Genvejstast")),
+        None => tr("No free hotkey. Click the icon instead", "Ingen ledig genvejstast. Klik på ikonet i stedet"),
     };
     let shot = MenuItem::with_id(app, "shot", shot_label, true, None::<&str>)?;
     let key = MenuItem::with_id(app, "key", key_label, false, None::<&str>)?;
-    let folder = MenuItem::with_id(app, "folder", "Åbn screenshots", true, None::<&str>)?;
-    let inbox = MenuItem::with_id(app, "inbox", "Åbn indbakke (Claude)", true, None::<&str>)?;
+    let folder = MenuItem::with_id(app, "folder", tr("Open screenshots", "Åbn screenshots"), true, None::<&str>)?;
+    let inbox = MenuItem::with_id(app, "inbox", tr("Open inbox (Claude)", "Åbn indbakke (Claude)"), true, None::<&str>)?;
     let sep = PredefinedMenuItem::separator(app)?;
-    let quit = MenuItem::with_id(app, "quit", "Afslut Klik", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", tr("Quit Klik", "Afslut Klik"), true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&shot, &key, &folder, &inbox, &sep, &quit])?;
     let tooltip = match hotkey {
-        Some(k) => format!("Klik  -  klik her eller tryk {k}"),
-        None => "Klik  -  klik her for screenshot".to_string(),
+        Some(k) => format!("Klik  -  {} {k}", tr("click here or press", "klik her eller tryk")),
+        None => format!("Klik  -  {}", tr("click here for a screenshot", "klik her for screenshot")),
     };
 
     TrayIconBuilder::with_id("klik")
