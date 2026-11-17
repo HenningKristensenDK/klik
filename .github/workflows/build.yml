@@ -1,13 +1,20 @@
 name: Build
 
 # Every push and pull request: test and build the Windows installer.
-# A tag like v0.1.5: also publish a GitHub Release with the installer and the Claude extension.
+# Publish a GitHub Release with the installer and the Claude extension by either
+# - running this workflow by hand (Actions > Build > Run workflow) with a version, or
+# - pushing a tag like v0.1.5.
 on:
   push:
     branches: ["**"]
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
+    inputs:
+      release:
+        description: "Version to publish, e.g. 0.1.5. Leave empty to only build."
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -77,9 +84,11 @@ jobs:
           if-no-files-found: error
 
       - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.release != ''
         uses: softprops/action-gh-release@v2
         with:
-          name: Klik ${{ github.ref_name }}
+          tag_name: ${{ inputs.release != '' && format('v{0}', inputs.release) || github.ref_name }}
+          target_commitish: ${{ github.sha }}
+          name: Klik ${{ inputs.release != '' && format('v{0}', inputs.release) || github.ref_name }}
           generate_release_notes: true
           files: out/*

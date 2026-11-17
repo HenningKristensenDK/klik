@@ -20,7 +20,7 @@ Everything else is a default you may change, saying why.
   - Editor: `cd app && npm run build && npx vite preview`, then drive it with Playwright. `bridge.ts` serves a demo desktop outside Tauri.
   - Rust: `cargo check --target x86_64-pc-windows-msvc` in `app/src-tauri` (needs a stub file at `app/src-tauri/binaries/klik-mcp-x86_64-pc-windows-msvc.exe`), and `cargo test` in `mcp`.
   - The Windows installer is built by `.github/workflows/build.yml` on every push.
-- Release: bump the version in `app/package.json`, `app/src-tauri/tauri.conf.json` and `app/src-tauri/Cargo.toml`, merge, then tag `vX.Y.Z` on `main`. The build publishes a GitHub Release with `Klik-setup.exe` (the README download link) and `Klik.mcpb`.
+- Release: bump the version in `app/package.json`, `app/src-tauri/tauri.conf.json` and `app/src-tauri/Cargo.toml`, merge, then run the Build workflow by hand on `main` with `release` = `X.Y.Z` (cloud sessions cannot push tags; a `vX.Y.Z` tag works too). The build publishes a GitHub Release with `Klik-setup.exe` (the README download link) and `Klik.mcpb`.
 
 ## Where things are
 
