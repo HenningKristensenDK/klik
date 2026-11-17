@@ -19,7 +19,7 @@ Everything stays on your PC. Screenshots are only read. The inbox is plain Markd
 
 Folders:
 - Screenshots: `Pictures\Klik` (change with the `KLIK_CAPTURES_DIR` environment variable)
-- Inbox: `Documents\Klik\Inbox` (change with `KLIK_INBOX_DIR`, or the "Inbox folder" setting in Claude Desktop)
+- Inbox: `Pictures\Klik\Inbox` (change with `KLIK_INBOX_DIR`, or the "Inbox folder" setting in Claude Desktop)
 
 ## Connect
 

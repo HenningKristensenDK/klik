@@ -8,6 +8,7 @@ Klik grows one feature at a time, each as a new version. Ideas and votes: [issue
 - Claude extension: Claude sees your screenshots and passes work between sessions.
 - **Klik Studio:** turn screenshots into a 4:5 LinkedIn carousel or 16:9 slides, exported as PDF + PNG. Claude can draft the story.
 - English, and Danish when Windows runs in Danish.
+- 0.2.1: everything Klik saves is in `Pictures\Klik` (screenshots, `Inbox`, `Studio`), never in Documents. Files are named `Klik 2026.11.17 19.30 001.png`, numbered through the day.
 
 ## Next
 - **Microsoft Store:** one-click install, signed, automatic updates.
