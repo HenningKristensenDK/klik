@@ -34,6 +34,12 @@ export async function saveExport(folder: string, file: string, bytes: Uint8Array
 
 export const openExports = (folder: string) => (inTauri ? invoke("open_exports", { folder }) : Promise.resolve());
 
+/** Studio's Screenshot button: Studio hides, the editor opens, Studio returns. */
+export async function takeScreenshot(): Promise<void> {
+  if (inTauri) await invoke("studio_capture");
+  else (window as unknown as { __shot?: number }).__shot = ((window as unknown as { __shot?: number }).__shot ?? 0) + 1;
+}
+
 /** Reopens a saved screenshot in the editor, to add markings on top. */
 export async function editCapture(name: string): Promise<void> {
   if (inTauri) await invoke("edit_capture", { name });

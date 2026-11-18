@@ -38,9 +38,16 @@ struct Editing(Mutex<Option<(PathBuf, Vec<u8>)>>);
 #[derive(Default)]
 struct Hotkey(Mutex<Option<String>>);
 
-/// Opening Klik takes a screenshot. The first launch has to wait until the
+/// `klik.exe --shot` takes a screenshot. The first launch has to wait until the
 /// overlay page is loaded, so the request is parked here until `frontend_ready`.
 static CAPTURE_ON_READY: AtomicBool = AtomicBool::new(false);
+
+/// Set when Studio's Screenshot button hid Studio, so it comes back after.
+static RETURN_TO_STUDIO: AtomicBool = AtomicBool::new(false);
+
+/// The app id the installer puts on Klik's shortcuts, so the jump list and
+/// Studio's taskbar button belong to the pinned Klik icon.
+const APP_ID: &str = "dk.rtpm.klik";
 
 /// Hotkeys to try, in order. The first one no other program owns wins.
 /// PrtScn is left alone on purpose: Snagit and Windows' Snipping Tool use it.
@@ -266,6 +273,9 @@ fn save_copy(app: AppHandle, request: Request<'_>) -> Result<String, String> {
 #[tauri::command]
 fn close(app: AppHandle, window: WebviewWindow, discard: bool) -> Result<(), String> {
     window.hide().map_err(err)?;
+    if RETURN_TO_STUDIO.swap(false, Ordering::SeqCst) {
+        open_studio(&app);
+    }
     app.state::<Shot>().0.lock().unwrap().take();
     let editing = app.state::<Editing>().0.lock().unwrap().take();
     if let Some(p) = app.state::<CurrentFile>().0.lock().unwrap().take() {
@@ -288,6 +298,7 @@ fn close(app: AppHandle, window: WebviewWindow, discard: bool) -> Result<(), Str
 #[tauri::command]
 fn close_to_studio(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
     window.hide().map_err(err)?;
+    RETURN_TO_STUDIO.store(false, Ordering::SeqCst);
     app.state::<Shot>().0.lock().unwrap().take();
     app.state::<Editing>().0.lock().unwrap().take();
     let saved = app.state::<CurrentFile>().0.lock().unwrap().take();
@@ -480,6 +491,109 @@ fn list_claude_drafts(app: AppHandle) -> Result<Vec<ClaudeDraft>, String> {
     Ok(out)
 }
 
+/// Studio's Screenshot button: hide Studio so it is not in the picture, take
+/// the screenshot, and bring Studio back when the editor closes.
+#[tauri::command]
+fn studio_capture(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
+    window.hide().map_err(err)?;
+    RETURN_TO_STUDIO.store(true, Ordering::SeqCst);
+    std::thread::spawn(move || {
+        // Let Windows finish hiding the window before the monitor is grabbed.
+        std::thread::sleep(std::time::Duration::from_millis(250));
+        if let Err(e) = capture(&app) {
+            eprintln!("klik: capture failed: {e}");
+            RETURN_TO_STUDIO.store(false, Ordering::SeqCst);
+            open_studio(&app);
+        }
+    });
+    Ok(())
+}
+
+/// What a start of `klik.exe` asks for: `--shot` a screenshot, `--background`
+/// nothing (start at login), anything else Klik Studio.
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Launch {
+    Shot,
+    Quiet,
+    Studio,
+}
+
+fn launch_kind<S: AsRef<str>>(args: &[S]) -> Launch {
+    if args.iter().any(|a| a.as_ref() == "--shot") {
+        Launch::Shot
+    } else if args.iter().any(|a| a.as_ref() == "--background") {
+        Launch::Quiet
+    } else {
+        Launch::Studio
+    }
+}
+
+/// Right-click on the Klik icon in the taskbar: "Take screenshot" and
+/// "Klik Studio", so neither needs the hotkey. Works while Klik is closed too.
+#[cfg(windows)]
+fn set_jump_list(da: bool) -> windows::core::Result<()> {
+    use windows::core::{Interface, HSTRING};
+    use windows::Win32::Storage::EnhancedStorage::PKEY_Title;
+    use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CoTaskMemAlloc, CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED};
+    use windows::Win32::UI::Shell::Common::{IObjectArray, IObjectCollection};
+    use windows::Win32::UI::Shell::PropertiesSystem::IPropertyStore;
+    use windows::Win32::UI::Shell::{CLSID_DestinationList, CLSID_EnumerableObjectCollection, ICustomDestinationList, IShellLinkW, ShellLink};
+
+    /// A PROPVARIANT holding a VT_LPWSTR, laid out by hand (24 bytes on x64).
+    #[repr(C)]
+    struct LpwstrVariant {
+        vt: u16,
+        reserved: [u16; 3],
+        text: *mut u16,
+        pad: usize,
+    }
+
+    unsafe {
+        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+        let exe = HSTRING::from(std::env::current_exe().unwrap_or_default().as_os_str());
+        let list: ICustomDestinationList = CoCreateInstance(&CLSID_DestinationList, None, CLSCTX_INPROC_SERVER)?;
+        list.SetAppID(&HSTRING::from(APP_ID))?;
+        let mut slots = 0u32;
+        let _removed: IObjectArray = list.BeginList(&mut slots)?;
+        let tasks: IObjectCollection = CoCreateInstance(&CLSID_EnumerableObjectCollection, None, CLSCTX_INPROC_SERVER)?;
+        let items = [
+            ("--shot", if da { "Tag screenshot" } else { "Take screenshot" }),
+            ("--studio", "Klik Studio"),
+        ];
+        for (arg, title) in items {
+            let link: IShellLinkW = CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER)?;
+            link.SetPath(&exe)?;
+            link.SetArguments(&HSTRING::from(arg))?;
+            link.SetIconLocation(&exe, 0)?;
+            // The title goes in COM memory; the shell copies it. A few bytes
+            // are left allocated once per start, which is harmless.
+            let wide: Vec<u16> = title.encode_utf16().chain(std::iter::once(0)).collect();
+            let text = CoTaskMemAlloc(wide.len() * 2) as *mut u16;
+            if text.is_null() {
+                continue;
+            }
+            std::ptr::copy_nonoverlapping(wide.as_ptr(), text, wide.len());
+            let value = LpwstrVariant { vt: 31, reserved: [0; 3], text, pad: 0 }; // 31 = VT_LPWSTR
+            let store: IPropertyStore = link.cast()?;
+            store.SetValue(&PKEY_Title, &value as *const LpwstrVariant as *const _)?;
+            store.Commit()?;
+            tasks.AddObject(&link)?;
+        }
+        let array: IObjectArray = tasks.cast()?;
+        list.AddUserTasks(&array)?;
+        list.CommitList()?;
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn set_app_id() {
+    use windows::core::HSTRING;
+    unsafe {
+        let _ = windows::Win32::UI::Shell::SetCurrentProcessExplicitAppUserModelID(&HSTRING::from(APP_ID));
+    }
+}
+
 fn open_studio(app: &AppHandle) {
     if let Some(w) = app.get_webview_window(STUDIO) {
         let _ = w.unminimize();
@@ -491,6 +605,14 @@ fn open_studio(app: &AppHandle) {
 #[cfg(test)]
 mod studio_tests {
     use super::*;
+
+    #[test]
+    fn launch_args_pick_shot_studio_or_quiet() {
+        assert_eq!(launch_kind(&["klik.exe"]), Launch::Studio);
+        assert_eq!(launch_kind(&["klik.exe", "--studio"]), Launch::Studio);
+        assert_eq!(launch_kind(&["klik.exe", "--shot"]), Launch::Shot);
+        assert_eq!(launch_kind(&["klik.exe", "--background"]), Launch::Quiet);
+    }
 
     #[test]
     fn safe_name_blocks_paths() {
@@ -607,15 +729,21 @@ fn setup_tray(app: &AppHandle, hotkey: Option<&str>) -> tauri::Result<()> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Started at login (later: autostart) should stay quiet. Started by the
-    // user from the Start menu or a shortcut should take a screenshot.
-    let background = std::env::args().any(|a| a == "--background");
-    CAPTURE_ON_READY.store(!background, Ordering::SeqCst);
+    // Started from the Start menu or the taskbar icon: Klik Studio, where the
+    // gallery and a Screenshot button are. `--shot` (the jump list) takes a
+    // screenshot. Started at login (`--background`) stays quiet.
+    let args: Vec<String> = std::env::args().collect();
+    let first = launch_kind(&args);
+    CAPTURE_ON_READY.store(first == Launch::Shot, Ordering::SeqCst);
+    #[cfg(windows)]
+    set_app_id();
 
     tauri::Builder::default()
-        // A second launch just triggers a capture in the running instance.
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            capture_async(app);
+        // A second launch asks the running Klik for a screenshot or Studio.
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| match launch_kind(&args) {
+            Launch::Shot => capture_async(app),
+            Launch::Studio => open_studio(app),
+            Launch::Quiet => {}
         }))
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
@@ -636,6 +764,7 @@ pub fn run() {
             save_copy,
             close,
             close_to_studio,
+            studio_capture,
             edit_capture,
             frontend_ready,
             hotkey_label,
@@ -660,6 +789,15 @@ pub fn run() {
             }
             *app.state::<Hotkey>().0.lock().unwrap() = got.map(String::from);
             setup_tray(app.handle(), got)?;
+            #[cfg(windows)]
+            std::thread::spawn(|| {
+                if let Err(e) = set_jump_list(danish()) {
+                    eprintln!("klik: jump list failed: {e}");
+                }
+            });
+            if first == Launch::Studio {
+                open_studio(app.handle());
+            }
             Ok(())
         })
         .on_window_event(|window, event| {

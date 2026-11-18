@@ -46,7 +46,7 @@ Priority: **Must** = MVP, **Should** = next release, **Could** = later.
 
 ### F1. Screenshot: Must, Built
 
-- Opening Klik (Start menu, taskbar or tray icon) or `Ctrl+Alt+K` freezes the monitor under the mouse. If another program owns that key, Klik takes the first free one of `Ctrl+Shift+K`, `Ctrl+Alt+S`, `Ctrl+Shift+X` and shows it in the tray menu. `PrtScn` is left to Snagit and the Snipping Tool.
+- `Ctrl+Alt+K`, "Take screenshot" in the taskbar icon's right-click list or the tray menu, or "New screenshot" in Studio freezes the monitor under the mouse. Opening Klik from the Start menu or the taskbar icon opens Klik Studio instead (0.2.5). If another program owns that key, Klik takes the first free one of `Ctrl+Shift+K`, `Ctrl+Alt+S`, `Ctrl+Shift+X` and shows it in the tray menu. `PrtScn` is left to Snagit and the Snipping Tool.
 - Drag to select an area, or click once to take the whole screen.
 - The selection shows its size in pixels.
 - Right-click starts the selection again.
@@ -127,7 +127,8 @@ Priority: **Must** = MVP, **Should** = next release, **Could** = later.
 ### F11. Always ready: Must, partly Built
 
 - Klik runs in the system tray. Left-click opens Klik Studio (Built, 0.2.4): screenshots start from the hotkey, so the icon is the way into Studio. The tooltip names both. The right-click menu has "Take screenshot", Studio, the folders and "Quit" (Built).
-- Open: Henning suggested a small window with the two choices (Studio, Screenshot) on mouse-over. Not built: a window that opens on hover pops up by accident, and Windows tray icons only report hover reliably for the tooltip.
+- Taskbar icon (Built, 0.2.5, untested on Windows): a click opens Klik Studio. Right-click shows a jump list with "Take screenshot" (`klik.exe --shot`) and "Klik Studio" (`--studio`), which works while Klik is closed too. Reason: users who do not know the hotkey must reach both, and Studio must open without a screenshot first (Henning 2026.11.18).
+- Not built: a window with the two choices on mouse-over. A pinned icon with no open window gives Klik no hover event, and Windows' own preview shows only for open windows, after its own delay. A window that opens on hover would also pop up by accident.
 - Starts with Windows (Planned).
 - Only one copy runs at a time. Starting it again triggers a capture (Built).
 
@@ -207,6 +208,8 @@ A second window of Klik, ported from the separate Klik Content app (old repo, PR
 **S1. One app (was C1, "separate app"): Built.** Studio is a window of Klik. It reuses Klik's screenshot folder `Pictures\Klik`, the MCP server (F13) and the handoff inbox (F14). Two ways in:
 - From the editor (Built, 0.2.2): the "Studio" button (key `S`, shown in its tooltip only, so the button stays short) next to "Done" closes the editor, opens Studio and adds the screenshot just taken, with its markings, as a new slide. One click. The button is white, so "Done" stays the one yellow action, and it is never needed in the normal capture flow, so the click budget for tasks 1 and 2 (section 4) is unchanged. Reason for the new button: Windows hides new tray icons, so the only other way in took three clicks on a hidden icon (found in Henning's test 2026.11.17).
 - From the tray icon: left-click (0.2.4), or "Klik Studio" in the right-click menu, to work on a deck without a new screenshot. One click.
+- From the taskbar or Start menu (0.2.5): a click on the Klik icon opens Studio. One click.
+- Studio's "New screenshot" button above the gallery (Built, 0.2.5): Studio hides, the editor opens on the monitor under the mouse, and Studio comes back when the editor closes, with the new screenshot in the gallery. White, so Export stays the one yellow action. Reason: a screenshot without the hotkey.
 
 **S1a. Gallery with re-edit: Built (0.2.3).** Studio's screenshot gallery (newest 60 in `Pictures\Klik`) has two actions per screenshot, each one click: click the picture to add it as a slide, or click the pencil to reopen it in the editor. The reopened screenshot sits in the middle of an ink backdrop, already selected, so the next drag marks it. Every change saves over the same file and Studio redraws the slides that use it. ✕ puts the original back instead of deleting the file. Markings already in a file are part of the picture: new ones go on top, old ones cannot be moved or removed. Henning asked for a chooser after the Studio button (deck or gallery); it was left out because it costs an extra click on the most common path, and the gallery gives both choices inside Studio (decided 2026.11.17).
 
@@ -255,6 +258,8 @@ These targets are the pass/fail test. Henning does each task in Snagit and in Kl
 | Screenshot as a Studio slide | `Ctrl+Alt+K` → drag → markings → `S` | 1 drag, 0 clicks (or 1 click on "Studio") |
 | Older screenshot into the deck | in Studio: click it in the gallery | 1 click |
 | More markings on an older screenshot | in Studio: pencil → mark → `Esc` | 1 click |
+| Open Studio to see earlier screenshots | click the Klik icon on the taskbar | 1 click |
+| Screenshot without the hotkey | Klik icon → "New screenshot" → drag (or right-click the icon → "Take screenshot") | 2 clicks + 1 drag |
 
 ## 5. Non-functional requirements
 

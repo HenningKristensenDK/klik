@@ -43,6 +43,7 @@ html.studio-page, html.studio-page body, html.studio-page #root { background: #f
 .st-shots, .st-list { overflow-y: auto; padding: 14px; border-right: 1px solid var(--border); background: #fff; }
 .st-shots { grid-area: shots; }
 .st-list { grid-area: list; display: flex; flex-direction: column; gap: 10px; }
+.st-newshot { width: 100%; margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 8px; }
 .st-h { display: flex; justify-content: space-between; align-items: center; font-weight: 600; font-size: 13px; color: var(--text); margin-top: 4px; }
 .st-hint { color: var(--text-2); font-size: 13px; margin: 6px 0 10px; }
 .shot-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }

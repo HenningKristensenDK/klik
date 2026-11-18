@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { lang, setLang, t } from "../i18n";
 import { DEFAULT_PROFILE, drawSlide, loadFonts, SIZE, textIssues, type Assets, type Format, type Issue, type Kind, type Profile, type Slide } from "./render";
-import { editCapture, listCaptures, listClaudeDrafts, onAddShot, onCaptureSaved, openExports, readCapture, type Capture, type ClaudeDraft } from "./io";
+import { editCapture, listCaptures, listClaudeDrafts, onAddShot, onCaptureSaved, openExports, readCapture, takeScreenshot, type Capture, type ClaudeDraft } from "./io";
 import { exportDeck } from "./export";
 
 const STORE = "klik-studio-v1";
@@ -368,6 +368,13 @@ export function Studio() {
           <span>{t.studio.screenshots}</span>
           <button className="link" onClick={refresh}>{t.studio.refresh}</button>
         </div>
+        <button className="ghost st-newshot" title={t.studio.newShotTitle} onClick={() => void takeScreenshot()}>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3" />
+            <path d="M12 9v6M9 12h6" />
+          </svg>
+          {t.studio.newShot}
+        </button>
         <p className="st-hint">{t.studio.clickToAdd}</p>
         <div className="shot-grid">
           {captures.map((c) => (
