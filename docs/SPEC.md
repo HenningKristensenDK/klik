@@ -36,7 +36,7 @@ Klik follows the RTPM product UI rules in `038-KNW-Universal brand color font an
 - Calm and light: white toolbar and hint, border `#e6e6f0`, text `#15162b`.
 - Active tool: Primary Indigo `#0d08d2`. One primary action per screen: "Kopiér" in Accent Yellow `#ffcc00`.
 - Marking colours: red `#C0392B`, indigo `#0d08d2`, green `#27AE60`, yellow `#ffcc00` (highlighter), ink `#15162b`. Numbered arrows default to indigo, pen and line to red.
-- App icon: blue and white only (Henning 2026.11.18; the yellow badge read as a colouring book): Ink Navy `#070474` to Primary Indigo upper-right, white selection corners and a white step badge with an indigo 1. Source: `app/src-tauri/icons/app-icon.svg`; regenerate the set with `npx tauri icon src-tauri/icons/app-icon.svg -o src-tauri/icons` in `app`. Klik's own icon, not the RTPM mark, so the logo rules for the RTPM mark do not apply.
+- App icon: the RTPM app icon, white mark on Ink Navy `#070474` (Henning 2026.11.18, 0.2.5; replaces the blue Klik icon of 0.2.4), so Klik is recognisably RTPM's. Source: `app/src-tauri/icons/app-icon.png`, a copy of `rtpm-appicon-1024.png` from RTPM's brand system; regenerate the set with `npx tauri icon src-tauri/icons/app-icon.png -o src-tauri/icons` in `app` and delete the `android` and `ios` folders it adds. Windows caches taskbar icons, so a pinned Klik icon can keep the old look until Windows refreshes it.
 - Sentence case in all UI text.
 - Installer publisher: Real Time Project Management.
 
