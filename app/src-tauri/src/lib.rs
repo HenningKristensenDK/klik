@@ -537,7 +537,7 @@ fn set_jump_list(da: bool) -> windows::core::Result<()> {
     use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CoTaskMemAlloc, CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED};
     use windows::Win32::UI::Shell::Common::{IObjectArray, IObjectCollection};
     use windows::Win32::UI::Shell::PropertiesSystem::IPropertyStore;
-    use windows::Win32::UI::Shell::{CLSID_DestinationList, CLSID_EnumerableObjectCollection, ICustomDestinationList, IShellLinkW, ShellLink};
+    use windows::Win32::UI::Shell::{DestinationList, EnumerableObjectCollection, ICustomDestinationList, IShellLinkW, ShellLink};
 
     /// A PROPVARIANT holding a VT_LPWSTR, laid out by hand (24 bytes on x64).
     #[repr(C)]
@@ -551,11 +551,11 @@ fn set_jump_list(da: bool) -> windows::core::Result<()> {
     unsafe {
         let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
         let exe = HSTRING::from(std::env::current_exe().unwrap_or_default().as_os_str());
-        let list: ICustomDestinationList = CoCreateInstance(&CLSID_DestinationList, None, CLSCTX_INPROC_SERVER)?;
+        let list: ICustomDestinationList = CoCreateInstance(&DestinationList, None, CLSCTX_INPROC_SERVER)?;
         list.SetAppID(&HSTRING::from(APP_ID))?;
         let mut slots = 0u32;
         let _removed: IObjectArray = list.BeginList(&mut slots)?;
-        let tasks: IObjectCollection = CoCreateInstance(&CLSID_EnumerableObjectCollection, None, CLSCTX_INPROC_SERVER)?;
+        let tasks: IObjectCollection = CoCreateInstance(&EnumerableObjectCollection, None, CLSCTX_INPROC_SERVER)?;
         let items = [
             ("--shot", if da { "Tag screenshot" } else { "Take screenshot" }),
             ("--studio", "Klik Studio"),
