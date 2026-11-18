@@ -36,7 +36,7 @@ Klik follows the RTPM product UI rules in `038-KNW-Universal brand color font an
 - Calm and light: white toolbar and hint, border `#e6e6f0`, text `#15162b`.
 - Active tool: Primary Indigo `#0d08d2`. One primary action per screen: "Kopiér" in Accent Yellow `#ffcc00`.
 - Marking colours: red `#C0392B`, indigo `#0d08d2`, green `#27AE60`, yellow `#ffcc00` (highlighter), ink `#15162b`. Numbered arrows default to indigo, pen and line to red.
-- App icon: Ink Navy `#070474` with an indigo glow upper-right, white selection corners and a yellow step badge with the number 1. Klik's own icon, not the RTPM mark, so the logo rules for the RTPM mark do not apply.
+- App icon: blue and white only (Henning 2026.11.18; the yellow badge read as a colouring book): Ink Navy `#070474` to Primary Indigo upper-right, white selection corners and a white step badge with an indigo 1. Source: `app/src-tauri/icons/app-icon.svg`; regenerate the set with `npx tauri icon src-tauri/icons/app-icon.svg -o src-tauri/icons` in `app`. Klik's own icon, not the RTPM mark, so the logo rules for the RTPM mark do not apply.
 - Sentence case in all UI text.
 - Installer publisher: Real Time Project Management.
 
@@ -126,7 +126,8 @@ Priority: **Must** = MVP, **Should** = next release, **Could** = later.
 
 ### F11. Always ready: Must, partly Built
 
-- Klik runs in the system tray. Left-click takes a screenshot. The right-click menu has "Open folder" and "Quit" (Built).
+- Klik runs in the system tray. Left-click opens Klik Studio (Built, 0.2.4): screenshots start from the hotkey, so the icon is the way into Studio. The tooltip names both. The right-click menu has "Take screenshot", Studio, the folders and "Quit" (Built).
+- Open: Henning suggested a small window with the two choices (Studio, Screenshot) on mouse-over. Not built: a window that opens on hover pops up by accident, and Windows tray icons only report hover reliably for the tooltip.
 - Starts with Windows (Planned).
 - Only one copy runs at a time. Starting it again triggers a capture (Built).
 
@@ -205,7 +206,7 @@ A second window of Klik, ported from the separate Klik Content app (old repo, PR
 
 **S1. One app (was C1, "separate app"): Built.** Studio is a window of Klik. It reuses Klik's screenshot folder `Pictures\Klik`, the MCP server (F13) and the handoff inbox (F14). Two ways in:
 - From the editor (Built, 0.2.2): the "Studio" button (key `S`, shown in its tooltip only, so the button stays short) next to "Done" closes the editor, opens Studio and adds the screenshot just taken, with its markings, as a new slide. One click. The button is white, so "Done" stays the one yellow action, and it is never needed in the normal capture flow, so the click budget for tasks 1 and 2 (section 4) is unchanged. Reason for the new button: Windows hides new tray icons, so the only other way in took three clicks on a hidden icon (found in Henning's test 2026.11.17).
-- From the tray menu: "Klik Studio: make a carousel or slides", to work on a deck without a new screenshot.
+- From the tray icon: left-click (0.2.4), or "Klik Studio" in the right-click menu, to work on a deck without a new screenshot. One click.
 
 **S1a. Gallery with re-edit: Built (0.2.3).** Studio's screenshot gallery (newest 60 in `Pictures\Klik`) has two actions per screenshot, each one click: click the picture to add it as a slide, or click the pencil to reopen it in the editor. The reopened screenshot sits in the middle of an ink backdrop, already selected, so the next drag marks it. Every change saves over the same file and Studio redraws the slides that use it. ✕ puts the original back instead of deleting the file. Markings already in a file are part of the picture: new ones go on top, old ones cannot be moved or removed. Henning asked for a chooser after the Studio button (deck or gallery); it was left out because it costs an extra click on the most common path, and the gallery gives both choices inside Studio (decided 2026.11.17).
 
@@ -262,7 +263,7 @@ These targets are the pass/fail test. Henning does each task in Snagit and in Kl
 - **Screens:** several monitors with different scaling must work. The capture follows the mouse.
 - **Storage (Built, 0.2.1):** everything Klik saves is under `Pictures\Klik\`: screenshots in the folder itself, handoffs in `Inbox\`, Studio exports in `Studio\`. Klik never writes to Documents, because on a work PC that folder is often redirected to a client or project folder (found on Henning's PC 2026.11.17). File names are `Klik YYYY.MM.DD HH.MM NNN.png`, for example `Klik 2026.11.17 19.30 001.png`; NNN counts up through the day. A dot separates hours and minutes because Windows does not allow a colon in a file name. Older files named `Klik YYYY-MM-DD HHMMSS.png` are still read. A handoff inbox left in `Documents\Klik\Inbox` by 0.2.0 is not moved.
 - **Privacy:** no telemetry. No network calls except F9 and F15, and only when the user starts them. Klik Studio (F16) makes no network calls; Claude only sees what the user's own Claude connection asks for.
-- **Language:** English user interface, and Danish when Windows runs in Danish (decided 2026.11.17). Few words, so keeping both costs little. Studio has an EN/DA switch in its top bar (Built, 0.2.3), because Studio has the most text; the choice also applies to the editor. The tray menu still follows Windows.
+- **Language:** English user interface, and Danish when Windows runs in Danish (decided 2026.11.17). Few words, so keeping both costs little. Studio has a small, grey EN/DA switch in its top bar (Built, 0.2.3; made quiet in 0.2.4, as it is a setting), because Studio has the most text; the choice also applies to the editor. The tray menu still follows Windows.
 - **Install:** no admin rights needed.
 
 ## 6. Out of scope for the MVP

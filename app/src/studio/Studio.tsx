@@ -352,7 +352,7 @@ export function Studio() {
           <button className={fmt === "16x9" ? "on" : ""} onClick={() => setFmt("16x9")}>{t.studio.fmt16x9}</button>
         </div>
         {/* Language of Klik's own texts. The deck is saved, so reloading loses nothing. */}
-        <div className="seg lang" role="group" aria-label="Language / Sprog">
+        <div className="lang" role="group" aria-label="Language / Sprog">
           {(["en", "da"] as const).map((l) => (
             <button key={l} className={lang === l ? "on" : ""} aria-pressed={lang === l} onClick={() => { if (l !== lang) { setLang(l); location.reload(); } }}>
               {l.toUpperCase()}
