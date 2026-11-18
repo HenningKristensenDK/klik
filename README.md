@@ -14,7 +14,7 @@ Only what you need, and it does that really well.</p>
 
 ## How it works
 
-1. Press **Ctrl+Alt+K**, or open Klik from the Start menu. The screen freezes.
+1. Press **Ctrl+Alt+K**, or right-click the Klik icon on the taskbar and choose **Take screenshot**. The screen freezes. A click on the icon opens Klik Studio.
 2. **Drag** an area, or click once for the whole screen. It is already on your clipboard.
 3. Mark it up if you like. Every marking updates the clipboard at once.
 4. **Ctrl+V** wherever you are: Teams, Outlook, Word, a browser.
