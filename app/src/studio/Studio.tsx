@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { lang, setLang, t } from "../i18n";
-import { DEFAULT_PROFILE, drawSlide, loadFonts, SIZE, textIssues, type Assets, type Format, type Issue, type Kind, type Profile, type Slide } from "./render";
+import { DEFAULT_PROFILE, drawSlide, loadFonts, SIZE, spanStart, textIssues, type Assets, type Format, type Issue, type Kind, type Profile, type Slide } from "./render";
 import { editCapture, listCaptures, listClaudeDrafts, onAddShot, onCaptureSaved, openExports, readCapture, takeScreenshot, type Capture, type ClaudeDraft } from "./io";
 import { exportDeck } from "./export";
 
@@ -103,6 +103,65 @@ async function smallDataUrl(f: File, max: number): Promise<{ url: string; bmp: I
   return { url, bmp: await createImageBitmap(blob) };
 }
 
+/** One slide drawn small, for the slide overview. Redraws only when its own slide, place or the shared look changes. */
+function SlideThumb({ fmt, slides, index, profile, assets, ready, ver }: {
+  fmt: Format; slides: Slide[]; index: number; profile: Profile; assets: Assets; ready: boolean; ver: number;
+}) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const latest = useRef(slides);
+  latest.current = slides;
+  const slide = slides[index];
+  const count = slides.length;
+  useEffect(() => {
+    if (!ready || !ref.current) return;
+    const c = ref.current;
+    const id = window.setTimeout(() => {
+      const { w, h } = SIZE[fmt];
+      const k = 180 / w; // about 90 css px wide, drawn at 2x
+      c.width = Math.round(w * k);
+      c.height = Math.round(h * k);
+      const g = c.getContext("2d")!;
+      g.setTransform(k, 0, 0, k, 0, 0);
+      drawSlide(g, fmt, latest.current, index, profile, assets);
+    }, 120);
+    return () => window.clearTimeout(id);
+  }, [slide, index, count, fmt, profile, assets, ready, ver]);
+  return <canvas ref={ref} />;
+}
+
+/**
+ * The highlight as clickable words: click a word to highlight it, click a word
+ * next to the highlight to extend it, click an end word to drop it. The result
+ * is always one span copied from the text, so it never fails the brand check.
+ */
+function WordPick({ text, value, onChange }: { text: string; value: string; onChange: (v: string) => void }) {
+  const ws = [...text.matchAll(/\S+/g)].map((m) => ({ w: m[0], s: m.index!, e: m.index! + m[0].length }));
+  const start = spanStart(text, value);
+  const end = start >= 0 ? start + value.trim().length : -1;
+  const on = ws.map((x) => start >= 0 && x.s >= start && x.e <= end);
+  const first = on.indexOf(true);
+  const last = on.lastIndexOf(true);
+  const pick = (i: number) => {
+    let a = first, b = last;
+    if (first < 0) a = b = i;
+    else if (i === first && i === last) return onChange("");
+    else if (i === first) a = i + 1;
+    else if (i === last) b = i - 1;
+    else if (i < first) a = i;
+    else if (i > last) b = i;
+    else a = b = i;
+    onChange(text.slice(ws[a].s, ws[b].e));
+  };
+  if (!ws.length) return <span className="st-hint">{t.studio.none}</span>;
+  return (
+    <span className="words" role="group">
+      {ws.map((x, i) => (
+        <button key={i} type="button" className={on[i] ? "on" : ""} aria-pressed={on[i]} onClick={() => pick(i)}>{x.w}</button>
+      ))}
+    </span>
+  );
+}
+
 export function Studio() {
   const init = useMemo(load, []);
   const [fmt, setFmt] = useState<Format>(init.fmt);
@@ -120,9 +179,12 @@ export function Studio() {
   const [reply, setReply] = useState("");
   const [angle, setAngle] = useState(init.angle ?? "");
   const [drafts, setDrafts] = useState<ClaudeDraft[]>([]);
+  const [undo, setUndo] = useState<{ slide: Slide; at: number } | null>(null);
+  const [dragId, setDragId] = useState("");
+  const [ver, setVer] = useState(0);
   const assets = useRef<Assets>({ shots: new Map(), photo: null, logoWhite: null });
   const canvas = useRef<HTMLCanvasElement>(null);
-  const [, bump] = useState(0);
+  const bump = setVer; // new screenshot pixels: redraw thumbnails too
 
   // Persist the deck so closing the window never loses work.
   useEffect(() => {
@@ -248,12 +310,69 @@ export function Studio() {
       return next;
     });
 
-  const remove = () => {
+  /** Drag in the overview: put slide `id` where `target` is. */
+  const moveTo = (id: string, target: string) =>
+    setSlides((all) => {
+      const from = all.findIndex((s) => s.id === id);
+      const to = all.findIndex((s) => s.id === target);
+      if (from < 0 || to < 0 || from === to) return all;
+      const next = [...all];
+      const [s] = next.splice(from, 1);
+      next.splice(to, 0, s);
+      return next;
+    });
+
+  /** Delete without asking; the note offers Undo instead, which is quicker. */
+  const remove = (id: string) => {
     if (slides.length <= 1) return;
-    const i = slides.findIndex((s) => s.id === current.id);
-    const next = slides.filter((s) => s.id !== current.id);
+    const i = slides.findIndex((s) => s.id === id);
+    const next = slides.filter((s) => s.id !== id);
     setSlides(next);
-    setSel(next[Math.max(0, i - 1)].id);
+    if (id === current.id) setSel(next[Math.max(0, i - 1)].id);
+    setUndo({ slide: slides[i], at: i });
+    setNote(t.studio.removed);
+  };
+
+  const restore = () => {
+    if (!undo) return;
+    const { slide, at } = undo;
+    setSlides((all) => {
+      const next = [...all];
+      next.splice(Math.min(at, next.length), 0, slide);
+      return next;
+    });
+    setSel(slide.id);
+    setUndo(null);
+    setNote("");
+  };
+
+  // Notes go away by themselves; an Undo stays a little longer.
+  useEffect(() => {
+    if (!note) return;
+    const id = window.setTimeout(() => { setNote(""); setUndo(null); }, undo ? 8000 : 6000);
+    return () => window.clearTimeout(id);
+  }, [note, undo]);
+
+  /** A gallery click: a screenshot already in the deck jumps to its slide instead of adding a copy. */
+  const addShot = (name: string) => {
+    const i = slides.findIndex((s) => s.shot === name);
+    if (i >= 0) {
+      setSel(slides[i].id);
+      setNote(t.studio.alreadyIn(i + 1));
+    } else insertBeforeCloser(blank("shot", name));
+  };
+
+  const onListKey = (e: React.KeyboardEvent) => {
+    const i = slides.findIndex((s) => s.id === current.id);
+    const prev = e.key === "ArrowUp" || e.key === "ArrowLeft";
+    const next = e.key === "ArrowDown" || e.key === "ArrowRight";
+    if (e.key === "Delete" || e.key === "Backspace") remove(current.id);
+    else if (e.altKey && prev) move(-1);
+    else if (e.altKey && next) move(1);
+    else if (prev && i > 0) setSel(slides[i - 1].id);
+    else if (next && i < slides.length - 1) setSel(slides[i + 1].id);
+    else return;
+    e.preventDefault();
   };
 
   const pickPhoto = async (f: File | undefined) => {
@@ -274,6 +393,9 @@ export function Studio() {
     assets.current.logoWhite = null;
     setProfile((p) => ({ ...p, logo: null }));
   };
+
+  // Screenshot name -> first slide number using it, for the gallery badges.
+  const used = useMemo(() => new Map(slides.flatMap((s, i) => (s.shot ? [[s.shot, i + 1] as const] : [])).reverse()), [slides]);
 
   const allIssues = useMemo(() => slides.flatMap((s, i) => textIssues(s).map((x) => ({ n: i + 1, ...x }))), [slides]);
   const count = slides.length;
@@ -379,9 +501,10 @@ export function Studio() {
         <div className="shot-grid">
           {captures.map((c) => (
             <div key={c.name} className="shot-cell">
-              <button className="shot" title={`${t.studio.addShot}: ${c.name}`} onClick={() => insertBeforeCloser(blank("shot", c.name))}>
+              <button className="shot" title={`${t.studio.addShot}: ${c.name}`} onClick={() => addShot(c.name)}>
                 {thumbs[c.name] ? <img src={thumbs[c.name]} alt="" /> : <span />}
               </button>
+              {used.has(c.name) && <span className="shot-used" title={t.studio.inDeck(used.get(c.name)!)}>{used.get(c.name)}</span>}
               <button className="shot-edit" title={t.studio.editShot} aria-label={t.studio.editShot} onClick={() => reopen(c.name)}>
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="M14.5 4.5l5 5L9 20H4v-5z" />
@@ -395,23 +518,31 @@ export function Studio() {
 
       <nav className="st-list">
         <div className="st-h"><span>{t.studio.slides(count)}</span></div>
-        <ol>
+        <div className={`thumbs f${fmt}`} onKeyDown={onListKey}>
           {slides.map((s, i) => (
-            <li key={s.id}>
-              <button className={s.id === current.id ? "on" : ""} onClick={() => setSel(s.id)}>
+            <div
+              key={s.id}
+              className={`thumb ${s.id === current.id ? "on" : ""} ${s.id === dragId ? "drag" : ""}`}
+              draggable
+              onDragStart={(e) => { setDragId(s.id); e.dataTransfer.effectAllowed = "move"; }}
+              onDragOver={(e) => { if (!dragId) return; e.preventDefault(); if (dragId !== s.id) moveTo(dragId, s.id); }}
+              onDragEnd={() => setDragId("")}
+              onDrop={(e) => { e.preventDefault(); setDragId(""); }}
+            >
+              <button className="pick" onClick={() => setSel(s.id)} title={`${i + 1}. ${KIND_LABEL[s.kind]}: ${s.headline || t.studio.untitled}`}>
+                <SlideThumb fmt={fmt} slides={slides} index={i} profile={profile} assets={assets.current} ready={ready} ver={ver} />
                 <b>{i + 1}</b>
-                <span className="k">{KIND_LABEL[s.kind]}</span>
-                <span className="t">{s.headline || t.studio.untitled}</span>
               </button>
-            </li>
+              {slides.length > 1 && (
+                <button className="del" aria-label={`${t.studio.remove} ${i + 1}`} title={t.studio.remove} onClick={() => remove(s.id)}>×</button>
+              )}
+            </div>
           ))}
-        </ol>
+        </div>
+        <p className="st-hint">{t.studio.listHint}</p>
         <div className="row">
           <button className="ghost sm" onClick={() => insertBeforeCloser(blank("rule"))}>{t.studio.addRule}</button>
           <button className="ghost sm" onClick={() => insertBeforeCloser(blank("text"))}>{t.studio.addText}</button>
-          <button className="ghost sm" onClick={() => move(-1)} aria-label={t.studio.moveUp} title={t.studio.moveUp}>↑</button>
-          <button className="ghost sm" onClick={() => move(1)} aria-label={t.studio.moveDown} title={t.studio.moveDown}>↓</button>
-          <button className="ghost sm" onClick={remove}>{t.studio.remove}</button>
         </div>
         {lengthWarn && <p className="warn">{lengthWarn}</p>}
 
@@ -442,11 +573,11 @@ export function Studio() {
             </label>
           </div>
           <label className="fld">{t.studio.headline}<textarea rows={2} value={current.headline} onChange={(e) => update({ headline: e.target.value })} /></label>
-          <label className="fld">{t.studio.highlight}<input value={current.highlight} onChange={(e) => update({ highlight: e.target.value })} placeholder={t.studio.none} /></label>
+          <div className="fld">{t.studio.highlight}<WordPick text={current.headline} value={current.highlight} onChange={(v) => update({ highlight: v })} /></div>
           <label className="fld">{t.studio.body}<textarea rows={3} value={current.body} onChange={(e) => update({ body: e.target.value })} /></label>
           {current.kind === "rule" && (
             <>
-              <label className="fld">{t.studio.bodyHighlight}<input value={current.bodyHighlight ?? ""} onChange={(e) => update({ bodyHighlight: e.target.value })} placeholder={t.studio.none} /></label>
+              <div className="fld">{t.studio.bodyHighlight}<WordPick text={current.body} value={current.bodyHighlight ?? ""} onChange={(v) => update({ bodyHighlight: v })} /></div>
               <label className="fld">{t.studio.inPractice}<textarea rows={2} value={current.inPractice ?? ""} onChange={(e) => update({ inPractice: e.target.value })} /></label>
             </>
           )}
@@ -463,7 +594,12 @@ export function Studio() {
             {!issues.length && <li className="ok">{t.studio.ready}</li>}
           </ul>
           {allIssues.some((x) => x.level === "stop") && (
-            <p className="warn">{t.studio.otherSlides([...new Set(allIssues.filter((x) => x.level === "stop").map((x) => x.n))].join(", "))}</p>
+            <p className="warn">
+              {t.studio.otherSlides}{" "}
+              {[...new Set(allIssues.filter((x) => x.level === "stop").map((x) => x.n))].map((n) => (
+                <button key={n} className="link jump" onClick={() => setSel(slides[n - 1].id)}>{n}</button>
+              ))}
+            </p>
           )}
         </section>
       </main>
@@ -497,7 +633,12 @@ export function Studio() {
         </div>
       )}
 
-      {note && <div className="st-note" role="status">{note}</div>}
+      {note && (
+        <div className="st-note" role="status">
+          {note}
+          {undo && <button className="link" onClick={restore}>{t.studio.undo}</button>}
+        </div>
+      )}
     </div>
   );
 }

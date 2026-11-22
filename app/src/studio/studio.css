@@ -60,6 +60,31 @@ html.studio-page, html.studio-page body, html.studio-page #root { background: #f
 }
 .shot-edit:hover { color: var(--indigo); border-color: var(--indigo); }
 
+/* Slide overview: small drawings of the real slides, so 30 slides stay tellable apart. */
+.thumbs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.thumbs.f16x9 { grid-template-columns: repeat(2, 1fr); }
+.thumb { position: relative; border-radius: 8px; }
+.thumb .pick { width: 100%; padding: 0; border: 2px solid transparent; border-radius: 8px; background: none; position: relative; display: block; line-height: 0; }
+.thumb .pick canvas { width: 100%; height: auto; display: block; border-radius: 6px; box-shadow: 0 1px 3px rgba(21,22,43,0.12); }
+.thumb .pick b { position: absolute; left: 4px; top: 4px; line-height: 1; font-size: 11px; font-weight: 600; background: #fff; color: var(--text); border-radius: 5px; padding: 3px 5px; }
+.thumb.on .pick { border-color: var(--indigo); }
+.thumb.drag { opacity: 0.4; }
+.thumb .del {
+  position: absolute; right: 4px; top: 4px; width: 22px; height: 22px; padding: 0; line-height: 1;
+  border: 1px solid var(--border); border-radius: 6px; background: #fff; color: var(--text); font-size: 15px;
+  opacity: 0; transition: opacity 0.12s;
+}
+.thumb:hover .del, .thumb:focus-within .del, .thumb.on .del { opacity: 1; }
+.thumb .del:hover { color: #b02a34; border-color: #b02a34; }
+/* Gallery: which screenshots are already in the deck, and as which slide. */
+.shot-used { position: absolute; left: 5px; bottom: 5px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--indigo); color: #fff; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center; }
+/* Highlight as clickable words. */
+.words { display: flex; flex-wrap: wrap; gap: 4px; }
+.words button { border: 1px solid var(--border); background: #fff; color: var(--text); padding: 4px 8px; border-radius: 6px; font-size: 13px; font-weight: 500; }
+.words button:hover { border-color: var(--indigo); }
+.words button.on { background: var(--indigo); border-color: var(--indigo); color: #fff; }
+.link.jump { margin-right: 6px; text-decoration: underline; }
+.st-note .link { margin-left: 10px; }
 .st-list ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .st-list li button {
   width: 100%; display: grid; grid-template-columns: 22px 1fr; grid-template-rows: auto auto; column-gap: 8px;
