@@ -182,6 +182,9 @@ export function Studio() {
   const [undo, setUndo] = useState<{ slide: Slide; at: number } | null>(null);
   const [dragId, setDragId] = useState("");
   const [ver, setVer] = useState(0);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [overProfile, setOverProfile] = useState(false);
+  const hits = useRef<number[][]>([]);
   const assets = useRef<Assets>({ shots: new Map(), photo: null, logoWhite: null });
   const canvas = useRef<HTMLCanvasElement>(null);
   const bump = setVer; // new screenshot pixels: redraw thumbnails too
@@ -238,7 +241,8 @@ export function Studio() {
     const { w, h } = SIZE[fmt];
     c.width = w;
     c.height = h;
-    setIssues(drawSlide(c.getContext("2d")!, fmt, slides, index, profile, assets.current));
+    hits.current = [];
+    setIssues(drawSlide(c.getContext("2d")!, fmt, slides, index, profile, assets.current, hits.current));
   }, [ready, current, index, slides, fmt, profile]);
 
   const update = (patch: Partial<Slide>) => setSlides((all) => all.map((s) => (s.id === current.id ? { ...s, ...patch } : s)));
@@ -389,6 +393,28 @@ export function Studio() {
     assets.current.logoWhite = bmp;
     setProfile((p) => ({ ...p, logo: url }));
   };
+  const removePhoto = () => {
+    assets.current.photo = null;
+    setProfile((p) => ({ ...p, photo: null, coverStyle: "card" }));
+  };
+
+  /** Is this mouse position on the profile drawn in the preview? */
+  const onProfile = (e: React.MouseEvent<HTMLElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const k = SIZE[fmt].w / r.width;
+    const x = (e.clientX - r.left) * k;
+    const y = (e.clientY - r.top) * k;
+    return hits.current.some(([hx, hy, hw, hh]) => x >= hx && x <= hx + hw && y >= hy && y <= hy + hh);
+  };
+
+  // Esc closes the profile card.
+  useEffect(() => {
+    if (!profileOpen) return;
+    const k = (e: KeyboardEvent) => e.key === "Escape" && setProfileOpen(false);
+    window.addEventListener("keydown", k);
+    return () => window.removeEventListener("keydown", k);
+  }, [profileOpen]);
+
   const removeLogo = () => {
     assets.current.logoWhite = null;
     setProfile((p) => ({ ...p, logo: null }));
@@ -545,24 +571,50 @@ export function Studio() {
           <button className="ghost sm" onClick={() => insertBeforeCloser(blank("text"))}>{t.studio.addText}</button>
         </div>
         {lengthWarn && <p className="warn">{lengthWarn}</p>}
-
-        <div className="st-h"><span>{t.studio.profile}</span></div>
-        <label className="fld">{t.studio.name}<input value={profile.name} onChange={(e) => setProfile({ ...profile, name: e.target.value })} /></label>
-        <label className="fld">{t.studio.role}<input value={profile.role} onChange={(e) => setProfile({ ...profile, role: e.target.value })} /></label>
-        <label className="fld">{t.studio.experience}<input value={profile.experience ?? ""} onChange={(e) => setProfile({ ...profile, experience: e.target.value })} /></label>
-        <label className="fld">{t.studio.photo}
-          <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => pickPhoto(e.target.files?.[0])} />
-        </label>
-        <label className="fld">{t.studio.logo}
-          <input type="file" accept="image/png,image/svg+xml,image/webp" onChange={(e) => pickLogo(e.target.files?.[0])} />
-        </label>
-        {profile.logo && <button className="link" onClick={removeLogo}>{t.studio.removeLogo}</button>}
       </nav>
 
       <main className="st-main">
-        <div className="preview" style={{ aspectRatio: `${w} / ${h}` }}>
-          <canvas ref={canvas} />
+        <div className="preview-wrap">
+          <div
+            className={`preview ${overProfile ? "over-profile" : ""}`}
+            style={{ aspectRatio: `${w} / ${h}` }}
+            title={overProfile ? t.studio.editProfile : undefined}
+            onMouseMove={(e) => setOverProfile(onProfile(e))}
+            onMouseLeave={() => setOverProfile(false)}
+            onClick={(e) => { if (onProfile(e)) setProfileOpen(true); }}
+          >
+            <canvas ref={canvas} />
+          </div>
+          {profile.name === DEFAULT_PROFILE.name && !profileOpen && (
+            <button className="link st-addprofile" onClick={() => setProfileOpen(true)}>{t.studio.addProfile}</button>
+          )}
         </div>
+        {profileOpen ? (
+            <div className="profile-card" role="dialog" aria-label={t.studio.profile}>
+              <div className="st-h"><span>{t.studio.profile}</span></div>
+              <label className="fld">{t.studio.name}<input autoFocus value={profile.name === DEFAULT_PROFILE.name ? "" : profile.name} placeholder={DEFAULT_PROFILE.name} onChange={(e) => setProfile({ ...profile, name: e.target.value || DEFAULT_PROFILE.name })} /></label>
+              <label className="fld">{t.studio.role}<input value={profile.role === DEFAULT_PROFILE.role ? "" : profile.role} placeholder={DEFAULT_PROFILE.role} onChange={(e) => setProfile({ ...profile, role: e.target.value || DEFAULT_PROFILE.role })} /></label>
+              <label className="fld">{t.studio.experience}<input value={profile.experience ?? ""} onChange={(e) => setProfile({ ...profile, experience: e.target.value })} /></label>
+              <label className="fld">{t.studio.photo}
+                <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => pickPhoto(e.target.files?.[0])} />
+              </label>
+              {profile.photo && <button className="link" onClick={removePhoto}>{t.studio.removePhoto}</button>}
+              {profile.photo && fmt === "4x5" && (
+                <div className="fld">{t.studio.coverStyle}
+                  <div className="seg sm">
+                    <button className={profile.coverStyle !== "portrait" ? "on" : ""} onClick={() => setProfile({ ...profile, coverStyle: "card" })}>{t.studio.coverCard}</button>
+                    <button className={profile.coverStyle === "portrait" ? "on" : ""} onClick={() => setProfile({ ...profile, coverStyle: "portrait" })}>{t.studio.coverPortrait}</button>
+                  </div>
+                  {profile.coverStyle === "portrait" && <span className="st-hint">{t.studio.portraitHint}</span>}
+                </div>
+              )}
+              <label className="fld">{t.studio.logo}
+                <input type="file" accept="image/png,image/svg+xml,image/webp" onChange={(e) => pickLogo(e.target.files?.[0])} />
+              </label>
+              {profile.logo && <button className="link" onClick={removeLogo}>{t.studio.removeLogo}</button>}
+              <div className="row"><button className="accent sm" onClick={() => setProfileOpen(false)}>{t.studio.done}</button></div>
+            </div>
+          ) : (
         <section className="edit">
           <div className="row">
             <label className="fld grow">{t.studio.tag}<input value={current.tag} onChange={(e) => update({ tag: e.target.value })} placeholder={t.studio.optional} /></label>
@@ -602,6 +654,7 @@ export function Studio() {
             </p>
           )}
         </section>
+        )}
       </main>
 
       {claudeOpen && (
