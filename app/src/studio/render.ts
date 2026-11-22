@@ -40,7 +40,13 @@ export type Profile = {
   photo: string | null;
   /** Data URL of a light logo for the closer, kept only on this PC. */
   logo?: string | null;
+  /** 4:5 cover: the photo in a small card (default) or as a large cut-out portrait. */
+  coverStyle?: "card" | "portrait";
 };
+
+/** Where the profile was drawn on the last preview, so a click there can edit it. */
+let hitSink: number[][] | null = null;
+const hit = (x: number, y: number, w: number, h: number) => hitSink?.push([x, y, w, h]);
 
 export type Assets = {
   shots: Map<string, ImageBitmap>;
@@ -357,15 +363,38 @@ function profileBlock(g: CanvasRenderingContext2D, p: Profile, photo: ImageBitma
   const ph = 210;
   portrait(g, photo, p.name, x, y, pw, ph, 18);
   profileText(g, p, x + pw + 32, y + 6, w - pw - 32, 36, 30);
+  hit(x, y, w, ph);
+}
+
+/**
+ * 4:5 cover with a large portrait: the photo stands at the bottom right, its
+ * own outline kept (best with a PNG whose background is removed), and the
+ * name, title and experience sit beside it at the bottom left.
+ */
+function portraitCover(g: CanvasRenderingContext2D, p: Profile, photo: ImageBitmap, M: number, W: number, H: number, textTop: number) {
+  const maxH = 640;
+  let ih = maxH;
+  let iw = (photo.width / photo.height) * ih;
+  if (iw > W * 0.55) {
+    iw = W * 0.55;
+    ih = (photo.height / photo.width) * iw;
+  }
+  const x = W - iw - 24;
+  const y = H - ih;
+  g.drawImage(photo, x, y, iw, ih);
+  const tw = x - M - 24;
+  profileText(g, p, M, textTop, tw, 36, 30, 3);
+  hit(M, textTop, W - M, H - textTop);
+  hit(x, y, iw, ih);
 }
 
 /** V2 "Swipe →": Barlow Semi Condensed 600, 40 px, light blue, never gold. Right-aligned. */
-function swipe(g: CanvasRenderingContext2D, right: number, y: number) {
+function swipe(g: CanvasRenderingContext2D, x: number, y: number, align: CanvasTextAlign = "right") {
   g.font = `600 40px ${DISPLAY}`;
   g.fillStyle = C.onNavy;
   g.textBaseline = "top";
-  g.textAlign = "right";
-  g.fillText("Swipe →", right, y);
+  g.textAlign = align;
+  g.fillText("Swipe →", x, y);
   g.textAlign = "left";
 }
 
@@ -384,6 +413,7 @@ function footer(g: CanvasRenderingContext2D, p: Profile, photo: ImageBitmap | nu
   const y = bottom - d;
   // Light indigo tint so the circle reads on the #F7F7FB interior ground.
   portrait(g, photo, p.name, x, y, d, d, -1, C.tint);
+  hit(x, y, right - x - 160, d);
   g.textBaseline = "middle";
   g.font = `600 ${FLOOR.label}px ${TEXT}`;
   g.fillStyle = C.sec;
@@ -430,7 +460,17 @@ export function textIssues(s: Slide): Issue[] {
   return out;
 }
 
-export function drawSlide(g: CanvasRenderingContext2D, fmt: Format, slides: Slide[], index: number, p: Profile, a: Assets): Issue[] {
+/** `hits`, when given, collects the rectangles where the profile was drawn (slide pixels). */
+export function drawSlide(g: CanvasRenderingContext2D, fmt: Format, slides: Slide[], index: number, p: Profile, a: Assets, hits?: number[][]): Issue[] {
+  hitSink = hits ?? null;
+  try {
+    return drawSlideInner(g, fmt, slides, index, p, a);
+  } finally {
+    hitSink = null;
+  }
+}
+
+function drawSlideInner(g: CanvasRenderingContext2D, fmt: Format, slides: Slide[], index: number, p: Profile, a: Assets): Issue[] {
   const s = slides[index];
   const total = slides.length;
   const issues: Issue[] = textIssues(s);
@@ -456,8 +496,14 @@ export function drawSlide(g: CanvasRenderingContext2D, fmt: Format, slides: Slid
       y = block(g, issues, t.studio.theText, s.body, "", { family: TEXT, weight: 400, x: M, y: y + 44, w: CW, h: 160, max: 38, min: FLOOR.body, lh: 1.45, color: C.onNavy });
       const py = BOTTOM - 210;
       if (y > py - 90) issues.push({ level: "stop", text: t.studio.coverFull });
-      swipe(g, W - M, py - 76);
-      profileBlock(g, p, a.photo, M, py, CW);
+      if (p.coverStyle === "portrait" && a.photo) {
+        // The portrait takes the right side, so "Swipe →" moves above the name.
+        swipe(g, M, py - 76, "left");
+        portraitCover(g, p, a.photo, M, W, H, py + 6);
+      } else {
+        swipe(g, W - M, py - 76);
+        profileBlock(g, p, a.photo, M, py, CW);
+      }
     } else if (s.kind === "closer") {
       kicker(g, tag, M, TOP, C.onNavy);
       let y = block(g, issues, t.studio.theHeadline, s.headline, s.highlight, { family: DISPLAY, weight: 700, x: M, y: 220, w: CW, h: 330, max: 104, min: FLOOR.headline, lh: 1.08, color: "#FFFFFF", hiColor });
@@ -505,6 +551,7 @@ export function drawSlide(g: CanvasRenderingContext2D, fmt: Format, slides: Slid
       block(g, issues, t.studio.theText, s.body, "", { family: TEXT, weight: 400, x: M, y: y + 40, w: tw, h: 170, max: 42, min: FLOOR.body, lh: 1.45, color: C.onNavy });
       portrait(g, a.photo, p.name, colX, M, 240, 300, 18);
       const ty = profileText(g, p, colX, M + 300 + 28, colW, 36, 30, 3);
+      hit(colX, M, colW, ty - M);
       if (s.kind === "cover") swipe(g, W - M, Math.max(ty + 24, BOTTOM - 48));
       else logo(g, a.logoWhite, M, BOTTOM, 300);
     } else if (s.kind === "rule") {

@@ -12,7 +12,7 @@ Klik grows one feature at a time, each as a new version. Ideas and votes: [issue
 - 0.2.2: a "Studio" button (key `S`) in the editor turns the screenshot you just took into a slide in Klik Studio. One click instead of three on a hidden tray icon.
 - 0.2.3: in Studio's gallery, click a screenshot to add it as a slide, or click its pencil to add more markings in the editor. The slide updates by itself.
 - 0.2.4: click the tray icon to open Klik Studio (screenshots start from the hotkey). New blue and white app icon.
-- 0.2.7: Studio slide overview with small slide drawings, drag to reorder, delete with Undo, no duplicate slides from the gallery; highlight by clicking words.
+- 0.2.7: Studio slide overview with small slide drawings, drag to reorder, delete with Undo, no duplicate slides from the gallery; highlight by clicking words. Profile edited by clicking it on the slide; large portrait cover.
 - 0.2.6: Esc always closes the editor, also when it opened without the keyboard; the hotkey brings an open editor forward.
 - 0.2.5: the RTPM app icon replaces the Klik icon. A click on the Klik icon on the taskbar opens Klik Studio; right-click it for "Take screenshot" or "Klik Studio". "New screenshot" in Studio takes one without the hotkey.
 

@@ -220,6 +220,10 @@ A second window of Klik, ported from the separate Klik Content app (old repo, PR
 
 **S2. Studio window (C2): Built.** Recent screenshots from `Pictures\Klik` (newest 60); one click adds a screenshot slide. Slide kinds: cover (dark), screenshot (light), rule (light), text (light), closer (dark). A rule slide gets "Rule n of N" and the big indigo number automatically, a body with one indigo span, and an "In practice" line. Per slide: tag, headline, highlight, body, screenshot. Reorder, delete, add rule or text slide. The deck is saved automatically on the PC.
 
+**S3a. Profile on the card: Built (0.2.7, browser-tested).** The profile form left the slide column. Click your name or photo on the slide (the pointer shows it is clickable), or "Add your name and photo" under a slide that still shows the placeholder, and the profile opens in the right panel while the slide stays visible. "Done" or `Esc` goes back to the slide fields. It stays filled after a restart. Reason: the profile is typed once, so it should not take room on every visit (Henning 2026.11.22).
+
+**S3b. Large portrait on the cover: Built (0.2.7, browser-tested, 4:5 only).** With a photo, the cover can show it small (the card, default) or as a large portrait standing at the bottom right, with name, title and experience beside it and "Swipe →" above the name. Works best with a PNG whose background is removed; Klik does not remove backgrounds (Gen 2 idea). 16:9 keeps the card.
+
 **S3. Profile (part of C2): Built, changed.** Name, title, experience line, photo and an optional light logo for the closer. All are kept only on the user's PC and never in the repo. Because Klik is public, the defaults are placeholders (`[Your name]`, `[Your title]`) instead of Henning's details, and the RTPM logo is not shipped: each user adds their own logo once (Henning adds the RTPM wordmark).
 
 **S4. Two formats (C3): Built.**
