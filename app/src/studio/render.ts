@@ -85,9 +85,15 @@ export type Issue = { level: "warn" | "stop"; text: string };
 type Word = { t: string; hi: boolean };
 type FontFn = (px: number) => string;
 
+/** Where `part` starts in `text`, ignoring case; -1 if absent or empty. */
+export function spanStart(text: string, part: string): number {
+  const p = part.trim().toLowerCase();
+  return p ? text.toLowerCase().indexOf(p) : -1;
+}
+
 function words(text: string, highlight: string): Word[][] {
   // Returns paragraphs (split on \n) of words, flagged when inside the highlight span.
-  const hiStart = highlight.trim() ? text.indexOf(highlight.trim()) : -1;
+  const hiStart = spanStart(text, highlight);
   const hiEnd = hiStart >= 0 ? hiStart + highlight.trim().length : -1;
   const out: Word[][] = [];
   let pos = 0;
@@ -401,7 +407,7 @@ export function textIssues(s: Slide): Issue[] {
   const out: Issue[] = [];
   const all = `${s.tag} ${s.headline} ${s.body} ${s.inPractice ?? ""}`;
   if (/[—]/.test(all)) out.push({ level: "stop", text: t.studio.noDash });
-  if (s.highlight.trim() && !s.headline.includes(s.highlight.trim()))
+  if (s.highlight.trim() && spanStart(s.headline, s.highlight) < 0)
     out.push({ level: "stop", text: t.studio.hlFromHeadline });
   if (s.highlight.trim().split(/\s+/).length > 4) out.push({ level: "warn", text: t.studio.hlMax4 });
   const n = countWords(s.headline);
@@ -409,7 +415,7 @@ export function textIssues(s: Slide): Issue[] {
   const bw = countWords(s.body);
   if (bw > 25 && s.kind !== "cover") out.push({ level: "warn", text: t.studio.bodyWords(bw) });
   if (s.kind === "rule") {
-    if (s.bodyHighlight?.trim() && !s.body.includes(s.bodyHighlight.trim()))
+    if (s.bodyHighlight?.trim() && spanStart(s.body, s.bodyHighlight) < 0)
       out.push({ level: "stop", text: t.studio.bodyHlFromBody });
     if (s.highlight.trim() && s.bodyHighlight?.trim())
       out.push({ level: "warn", text: t.studio.oneHighlight });
