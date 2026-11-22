@@ -60,6 +60,32 @@ fn hotkey_candidates() -> Vec<(Shortcut, &'static str)> {
     ]
 }
 
+/// Esc, caught from Windows while the editor is open. The editor window does
+/// not always get the keyboard (Windows refuses focus to a window that opens
+/// while another program is in front), and then Esc went to that program and
+/// the editor stayed open. Registered on show, released on close.
+fn escape_key() -> Shortcut {
+    Shortcut::new(None, Code::Escape)
+}
+
+fn grab_escape(app: &AppHandle) {
+    use tauri_plugin_global_shortcut::GlobalShortcutExt;
+    let gs = app.global_shortcut();
+    if !gs.is_registered(escape_key()) {
+        if let Err(e) = gs.register(escape_key()) {
+            eprintln!("klik: Esc could not be caught: {e}");
+        }
+    }
+}
+
+fn release_escape(app: &AppHandle) {
+    use tauri_plugin_global_shortcut::GlobalShortcutExt;
+    let gs = app.global_shortcut();
+    if gs.is_registered(escape_key()) {
+        let _ = gs.unregister(escape_key());
+    }
+}
+
 fn overlay(app: &AppHandle) -> Option<WebviewWindow> {
     app.get_webview_window(OVERLAY)
 }
@@ -72,7 +98,12 @@ fn err<E: std::fmt::Display>(e: E) -> String {
 fn capture(app: &AppHandle) -> Result<(), String> {
     let win = overlay(app).ok_or("overlay window missing")?;
     if win.is_visible().unwrap_or(false) {
-        return Ok(()); // already capturing
+        // Already capturing: bring the editor forward instead of ignoring the
+        // hotkey, so an editor hidden behind another window is never stuck.
+        win.set_always_on_top(true).map_err(err)?;
+        win.set_focus().map_err(err)?;
+        grab_escape(app);
+        return Ok(());
     }
     let cursor = app.cursor_position().map_err(err)?;
     let mon = xcap::Monitor::from_point(cursor.x as i32, cursor.y as i32).map_err(err)?;
@@ -182,10 +213,11 @@ fn hotkey_label(hotkey: tauri::State<'_, Hotkey>) -> Option<String> {
 }
 
 #[tauri::command]
-fn show_overlay(window: WebviewWindow) -> Result<(), String> {
+fn show_overlay(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
     window.show().map_err(err)?;
     window.set_always_on_top(true).map_err(err)?;
-    window.set_focus().map_err(err)?;
+    let _ = window.set_focus(); // may be refused; Esc works anyway
+    grab_escape(&app);
     Ok(())
 }
 
@@ -272,6 +304,7 @@ fn save_copy(app: AppHandle, request: Request<'_>) -> Result<String, String> {
 /// for a screenshot reopened from Studio, puts the original back.
 #[tauri::command]
 fn close(app: AppHandle, window: WebviewWindow, discard: bool) -> Result<(), String> {
+    release_escape(&app);
     window.hide().map_err(err)?;
     if RETURN_TO_STUDIO.swap(false, Ordering::SeqCst) {
         open_studio(&app);
@@ -297,6 +330,7 @@ fn close(app: AppHandle, window: WebviewWindow, discard: bool) -> Result<(), Str
 /// screenshot just saved as a slide. The file is kept, as with `close`.
 #[tauri::command]
 fn close_to_studio(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
+    release_escape(&app);
     window.hide().map_err(err)?;
     RETURN_TO_STUDIO.store(false, Ordering::SeqCst);
     app.state::<Shot>().0.lock().unwrap().take();
@@ -747,8 +781,16 @@ pub fn run() {
         }))
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
-                .with_handler(move |app, _shortcut, event| {
-                    if event.state() == ShortcutState::Pressed {
+                .with_handler(move |app, shortcut, event| {
+                    if event.state() != ShortcutState::Pressed {
+                        return;
+                    }
+                    if *shortcut == escape_key() {
+                        // The editor decides: finish a comment, close, or discard.
+                        if let Some(w) = overlay(app) {
+                            let _ = w.emit("escape", ());
+                        }
+                    } else {
                         capture_async(app);
                     }
                 })

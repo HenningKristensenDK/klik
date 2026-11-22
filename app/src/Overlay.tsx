@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useReducer, useRef } from "react";
-import { close, closeToStudio, hotkeyLabel, inTauri, loadShot, onCaptured, saveCopy, showOverlay, type Shot } from "./bridge";
+import { close, closeToStudio, hotkeyLabel, inTauri, loadShot, onCaptured, onEscape, saveCopy, showOverlay, type Shot } from "./bridge";
 import { CALLOUT, calloutLayout, exportRgba, normRect, render, type Pt, type Rect, type Shape, type Tool } from "./draw";
 import { Icon } from "./icons";
 import { t } from "./i18n";
@@ -279,6 +279,20 @@ export function Overlay() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [done, abort, toStudio]);
+
+  // Esc from the core (the editor may not have the keyboard): same rules as
+  // the key, including finishing a comment that is being typed.
+  useEffect(
+    () =>
+      onEscape(() => {
+        const s = st.current;
+        if (s.mode === "idle") return;
+        if (s.editing !== null) commitText();
+        else if (s.mode === "edit") done();
+        else abort();
+      }),
+    [done, abort, commitText],
+  );
 
   const setText = (text: string) => {
     const s = st.current;

@@ -38,6 +38,18 @@ export function onCaptured(cb: (sel: Preselect) => void): () => void {
   return () => off();
 }
 
+/** Esc pressed while the editor is open, caught by the core even when the editor lacks focus. */
+export function onEscape(cb: () => void): () => void {
+  if (!inTauri) return () => {};
+  let off = () => {};
+  let gone = false;
+  listen("escape", () => cb()).then((u) => (gone ? u() : (off = u)));
+  return () => {
+    gone = true;
+    off();
+  };
+}
+
 /** The hotkey Klik got (e.g. "Ctrl+Alt+K"), or null if all were taken. */
 export const hotkeyLabel = (): Promise<string | null> =>
   inTauri ? invoke<string | null>("hotkey_label") : Promise.resolve("Ctrl+Alt+K");
