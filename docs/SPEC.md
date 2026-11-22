@@ -79,6 +79,7 @@ Priority: **Must** = MVP, **Should** = next release, **Could** = later.
 - Every marking and every undo updates the clipboard and the same file within about 0.2 seconds. The toolbar shows "Kopieret".
 - `Esc`, `Enter` or "Færdig" only closes. The ✕ button deletes the file and closes.
 - Esc before anything is selected cancels without saving.
+- Esc works even when the editor did not get the keyboard (Built, 0.2.6, untested on Windows). Windows can refuse focus to a window that opens while another program is in front; Klik then catches Esc itself while the editor is open. The hotkey pressed while the editor is open brings it forward instead of being ignored. Reason: Henning's editor stayed open behind other windows and no new screenshots were saved (2026.11.18).
 - **Accept when:** selecting an area and pressing `Ctrl+V` in Teams pastes it with no other key; after adding arrows, `Ctrl+V` pastes the marked version.
 
 ### F5. Scrolling capture: Must, Planned
