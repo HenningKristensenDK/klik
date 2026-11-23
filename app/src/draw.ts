@@ -200,6 +200,10 @@ export function drawShape(ctx: CanvasRenderingContext2D, sh: Shape, s: number, b
 }
 
 /** Draw the screen, the dimmed surroundings and the annotations. */
+/** Navy over the screen: light while you pick the area, so you see what to
+ *  frame; dark around a framed area, so the eye stays on it. */
+export const DIM = { picking: 0.3, framed: 0.8 };
+
 export function render(
   ctx: CanvasRenderingContext2D,
   img: CanvasImageSource,
@@ -209,13 +213,15 @@ export function render(
   editing: number | null = null,
   /** During a long screenshot: the area as it is now, drawn over the frozen image. */
   live: CanvasImageSource | null = null,
+  /** How much RTPM Navy covers the screen outside the selection, 0 to 1. */
+  dim = DIM.framed,
 ) {
   const { width: W, height: H } = ctx.canvas;
   ctx.clearRect(0, 0, W, H);
   ctx.drawImage(img, 0, 0);
 
   ctx.save();
-  ctx.fillStyle = "rgba(7, 4, 116, 0.42)"; // Ink Navy
+  ctx.fillStyle = `rgba(7, 4, 116, ${dim})`; // RTPM Navy #070474
   ctx.beginPath();
   ctx.rect(0, 0, W, H);
   if (sel) ctx.rect(sel.x, sel.y, sel.w, sel.h);
