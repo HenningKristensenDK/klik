@@ -62,10 +62,6 @@ impl Stitcher {
         }
     }
 
-    pub fn width(&self) -> u32 {
-        self.w
-    }
-
     /// Height of the long image so far.
     pub fn height(&self) -> u32 {
         match self.fixed {
