@@ -57,6 +57,7 @@ html, body, #root { margin: 0; height: 100%; overflow: hidden; background: #000;
   font: 600 11px "Inter", "Segoe UI", sans-serif; padding: 2px 7px; border-radius: 5px;
 }
 .hint-key kbd { color: var(--indigo); background: var(--indigo-050); }
+.ver { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
 
 .size {
   padding: 3px 8px; border-radius: 6px; font-size: 12px; font-weight: 500;

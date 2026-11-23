@@ -19,6 +19,7 @@ import {
 import { CALLOUT, calloutLayout, exportRgba, normRect, render, type Pt, type Rect, type Shape, type Tool } from "./draw";
 import { Icon } from "./icons";
 import { t } from "./i18n";
+import { VERSION } from "./version";
 
 /** `long`: the wheel is making a long screenshot of the selected area. */
 type Mode = "idle" | "select" | "edit" | "long";
@@ -489,11 +490,14 @@ export function Overlay() {
       {s.mode === "select" && !s.start && (
         <div className="hint">
           <b>{t.hintDrag}</b> {t.hintDragRest} &nbsp;·&nbsp; <b>{t.hintClick}</b> {t.hintClickRest} &nbsp;·&nbsp; <b>{t.hintScroll}</b> {t.hintScrollRest} &nbsp;·&nbsp; <b>Esc</b> {t.hintEscRest}
-          {hotkey.current && (
-            <div className="hint-key">
-              {t.hintNext} <kbd>{hotkey.current}</kbd>
-            </div>
-          )}
+          <div className="hint-key">
+            {hotkey.current && (
+              <>
+                {t.hintNext} <kbd>{hotkey.current}</kbd> &nbsp;·&nbsp;{" "}
+              </>
+            )}
+            <span className="ver">Klik {VERSION}</span>
+          </div>
         </div>
       )}
 

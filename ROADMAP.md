@@ -3,6 +3,7 @@
 Klik grows one feature at a time, each as a new version. Ideas and votes: [issues](https://github.com/HenningKristensenDK/klik/issues).
 
 ## Now (0.3)
+- 0.3.1: the version number shows, small, in the editor's hint and next to "Klik Studio".
 - 0.3.0 Long screenshot: select an area, then turn the mouse wheel. Klik scrolls the window below and stitches one tall image, with a fixed header kept once. `Esc` saves and copies it; a click opens it in the editor, where the wheel scrolls the image so you can mark all of it.
 
 ## 0.2

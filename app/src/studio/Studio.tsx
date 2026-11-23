@@ -6,6 +6,7 @@ import { lang, setLang, t } from "../i18n";
 import { DEFAULT_PROFILE, drawSlide, loadFonts, SIZE, spanStart, textIssues, type Assets, type Format, type Issue, type Kind, type Profile, type Slide } from "./render";
 import { editCapture, listCaptures, listClaudeDrafts, onAddShot, onCaptureSaved, openExports, readCapture, takeScreenshot, type Capture, type ClaudeDraft } from "./io";
 import { exportDeck } from "./export";
+import { VERSION } from "../version";
 
 const STORE = "klik-studio-v1";
 
@@ -492,7 +493,7 @@ export function Studio() {
   return (
     <div className="studio">
       <header className="st-top">
-        <div className="st-brand">Klik <span>Studio</span></div>
+        <div className="st-brand">Klik <span>Studio</span> <small className="st-ver">{VERSION}</small></div>
         <input className="st-title" value={title} onChange={(e) => setTitle(e.target.value)} aria-label={t.studio.titleAria} />
         <div className="seg" role="tablist" aria-label="Format">
           <button className={fmt === "4x5" ? "on" : ""} onClick={() => setFmt("4x5")}>{t.studio.fmt4x5}</button>
