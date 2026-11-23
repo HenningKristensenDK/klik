@@ -1,10 +1,27 @@
 import { useCallback, useEffect, useReducer, useRef } from "react";
-import { close, closeToStudio, hotkeyLabel, inTauri, loadShot, onCaptured, onEscape, saveCopy, showOverlay, type Shot } from "./bridge";
+import {
+  close,
+  closeToStudio,
+  hotkeyLabel,
+  inTauri,
+  loadShot,
+  longFinish,
+  longFrame,
+  longStart,
+  longStep,
+  onCaptured,
+  onEscape,
+  onLongProgress,
+  saveCopy,
+  showOverlay,
+  type Shot,
+} from "./bridge";
 import { CALLOUT, calloutLayout, exportRgba, normRect, render, type Pt, type Rect, type Shape, type Tool } from "./draw";
 import { Icon } from "./icons";
 import { t } from "./i18n";
 
-type Mode = "idle" | "select" | "edit";
+/** `long`: the wheel is making a long screenshot of the selected area. */
+type Mode = "idle" | "select" | "edit" | "long";
 
 // RTPM brand: RAG red/green, Primary Indigo, Accent Yellow (highlighter), Ink.
 const COLORS = ["#C0392B", "#0d08d2", "#27AE60", "#ffcc00", "#15162b"];
@@ -40,7 +57,17 @@ export function Overlay() {
     editing: null as number | null,
     /** Clipboard state shown in the toolbar. */
     status: "" as "" | "saving" | "saved" | "error",
+    /** A screenshot reopened from Studio: the wheel does not start a long one. */
+    reopened: false,
+    /** The capture is a long screenshot, taller than the screen: the page scrolls. */
+    tall: false,
+    /** Height of the long screenshot so far, image pixels. */
+    longH: 0,
+    /** Wheel movement not yet turned into notches. */
+    wheelAcc: 0,
   });
+  /** The area as it is now, while a long screenshot runs. */
+  const live = useRef<ImageBitmap | null>(null);
   const saveTimer = useRef<number | undefined>(undefined);
   const saveSeq = useRef(0);
   const saving = useRef<Promise<unknown>>(Promise.resolve());
@@ -61,7 +88,7 @@ export function Overlay() {
       const s = st.current;
       if (!c || !shot.current) return;
       const shapes = s.draft ? [...s.shapes, s.draft] : s.shapes;
-      render(c.getContext("2d")!, shot.current.bitmap, s.sel, shapes, k(), s.editing);
+      render(c.getContext("2d")!, shot.current.bitmap, s.sel, shapes, k(), s.editing, s.mode === "long" ? live.current : null);
     });
   }, []);
 
@@ -78,7 +105,23 @@ export function Overlay() {
         c.height = next.h;
         // A screenshot reopened from Studio arrives already selected, ready to mark.
         const sel = pre ? { x: pre[0], y: pre[1], w: pre[2], h: pre[3] } : null;
-        Object.assign(st.current, { mode: sel ? "edit" : "select", sel, shapes: [], draft: null, start: null, busy: false, toast: "", status: "", editing: null });
+        live.current?.close();
+        live.current = null;
+        Object.assign(st.current, {
+          mode: sel ? "edit" : "select",
+          sel,
+          shapes: [],
+          draft: null,
+          start: null,
+          busy: false,
+          toast: "",
+          status: "",
+          editing: null,
+          reopened: !!sel,
+          tall: false,
+          longH: 0,
+          wheelAcc: 0,
+        });
         render(c.getContext("2d")!, next.bitmap, sel, [], k());
         rerender();
         await showOverlay();
@@ -162,6 +205,95 @@ export function Overlay() {
   const done = useCallback(() => finish(false), [finish]);
   const toStudio = useCallback(() => finish(true), [finish]);
 
+  /**
+   * Ends a long screenshot. The tall image replaces the capture and is copied
+   * and saved at once. `save` then closes, as Esc does on a normal capture;
+   * `edit` keeps the editor open to draw on it; `studio` sends it to Studio.
+   */
+  const finishLong = useCallback(
+    async (next: "save" | "edit" | "studio") => {
+      const s = st.current;
+      if (s.mode !== "long" || s.busy) return;
+      s.busy = true;
+      let tall: Shot;
+      try {
+        tall = await longFinish();
+      } catch (e) {
+        console.error("klik: long screenshot failed", e);
+        Object.assign(s, { mode: "edit", busy: false });
+        paint();
+        rerender();
+        return;
+      }
+      live.current?.close();
+      live.current = null;
+      shot.current?.bitmap.close();
+      shot.current = tall;
+      const c = canvasRef.current!;
+      c.width = tall.w;
+      c.height = tall.h;
+      Object.assign(s, { mode: "edit", tall: true, sel: { x: 0, y: 0, w: tall.w, h: tall.h }, shapes: [], draft: null, busy: false });
+      rerender();
+      paint();
+      scheduleSave(0);
+      if (next === "save") await done();
+      else if (next === "studio") await toStudio();
+    },
+    [paint, scheduleSave, done, toStudio],
+  );
+
+  /** The first wheel notch on a selected area starts a long screenshot. */
+  const startLong = useCallback(
+    async (notches: number) => {
+      const s = st.current;
+      if (!s.sel) return;
+      s.busy = true;
+      try {
+        await longStart(s.sel);
+      } catch (e) {
+        console.error("klik: long screenshot could not start", e);
+        s.busy = false;
+        return;
+      }
+      Object.assign(s, { mode: "long", longH: Math.round(s.sel.h), busy: false });
+      paint();
+      rerender();
+      longStep(notches);
+    },
+    [paint],
+  );
+
+  const onWheel = (e: React.WheelEvent) => {
+    const s = st.current;
+    if (s.busy || s.tall || s.reopened || e.deltaY <= 0) return; // down only
+    const canStart = s.mode === "edit" && !s.shapes.length && s.editing === null && !s.draft;
+    if (s.mode !== "long" && !canStart) return;
+    s.wheelAcc += e.deltaMode === 1 ? e.deltaY * 33 : e.deltaMode === 2 ? e.deltaY * 800 : e.deltaY;
+    const n = Math.floor(s.wheelAcc / 100);
+    if (n < 1) return;
+    s.wheelAcc -= n * 100;
+    if (s.mode === "long") longStep(n);
+    else startLong(n);
+  };
+
+  // The long screenshot grew: show the area as it is now.
+  useEffect(
+    () =>
+      onLongProgress(async (height) => {
+        const s = st.current;
+        if (s.mode !== "long") return;
+        s.longH = height;
+        const f = await longFrame().catch(() => null);
+        if (!f) return;
+        if (st.current.mode !== "long") return f.bitmap.close();
+        live.current?.close();
+        live.current = f.bitmap;
+        paint();
+        rerender();
+      }),
+    [paint],
+  );
+
   /** Kassér: close and delete the file saved for this capture. */
   const abort = useCallback(async () => {
     window.clearTimeout(saveTimer.current);
@@ -173,6 +305,7 @@ export function Overlay() {
   }, []);
 
   const backToSelect = () => {
+    if (st.current.tall) return; // the long image is the capture now
     Object.assign(st.current, { mode: "select", sel: null, shapes: [], draft: null, start: null });
     paint();
     rerender();
@@ -180,6 +313,8 @@ export function Overlay() {
 
   const onDown = (e: React.PointerEvent) => {
     const s = st.current;
+    // A click ends a long screenshot and opens it to draw on.
+    if (s.mode === "long") return void finishLong("edit");
     if (e.button === 2) return backToSelect();
     if (e.button !== 0) return;
     const p = toImg(e);
@@ -263,6 +398,21 @@ export function Overlay() {
       const s = st.current;
       if (s.mode === "idle" || s.editing !== null) return; // the comment field handles its own keys
       const key = e.key.toLowerCase();
+      if (s.mode === "long") {
+        // Esc saves the long image as it is; a tool key opens it to draw on.
+        if (key === "escape" || key === "enter") {
+          e.preventDefault();
+          finishLong("save");
+        } else if (key === "s" && !e.ctrlKey && !e.altKey) finishLong("studio");
+        else if (!e.ctrlKey && !e.altKey) {
+          const t = TOOLS.find((x) => x.key.toLowerCase() === key);
+          if (t) {
+            setTool(t.id);
+            finishLong("edit");
+          }
+        }
+        return;
+      }
       if (key === "escape") {
         e.preventDefault();
         if (s.mode === "edit") done();
@@ -278,7 +428,7 @@ export function Overlay() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [done, abort, toStudio]);
+  }, [done, abort, toStudio, finishLong]);
 
   // Esc from the core (the editor may not have the keyboard): same rules as
   // the key, including finishing a comment that is being typed.
@@ -287,11 +437,12 @@ export function Overlay() {
       onEscape(() => {
         const s = st.current;
         if (s.mode === "idle") return;
-        if (s.editing !== null) commitText();
+        if (s.mode === "long") finishLong("save");
+        else if (s.editing !== null) commitText();
         else if (s.mode === "edit") done();
         else abort();
       }),
-    [done, abort, commitText],
+    [done, abort, commitText, finishLong],
   );
 
   const setText = (text: string) => {
@@ -306,9 +457,16 @@ export function Overlay() {
   const s = st.current;
   const kk = k();
   const selCss = s.sel && { x: s.sel.x / kk, y: s.sel.y / kk, w: s.sel.w / kk, h: s.sel.h / kk };
+  // A long image is shown at the scale it was taken at, as tall as it is.
+  const dpr = window.devicePixelRatio || 1;
+  const sheet: React.CSSProperties | undefined =
+    s.tall && shot.current ? { width: shot.current.w / dpr, height: shot.current.h / dpr } : undefined;
 
   let bar: React.CSSProperties | undefined;
-  if (s.mode === "edit" && selCss) {
+  if (s.mode === "edit" && s.tall) {
+    // The long image scrolls under a toolbar that stays at the bottom.
+    bar = { position: "fixed", bottom: 20, left: window.innerWidth / 2 };
+  } else if (s.mode === "edit" && selCss) {
     const H = 52;
     let top = selCss.y + selCss.h + 12;
     if (top + H > window.innerHeight - 8) top = selCss.y - H - 12;
@@ -318,7 +476,8 @@ export function Overlay() {
   }
 
   return (
-    <div className={`stage mode-${s.mode}`} onContextMenu={(e) => e.preventDefault()}>
+    <div className={`stage mode-${s.mode}${s.tall ? " tall" : ""}`} onContextMenu={(e) => e.preventDefault()} onWheel={onWheel}>
+      <div className="sheet" style={sheet}>
       <canvas
         ref={canvasRef}
         className="screen"
@@ -329,7 +488,7 @@ export function Overlay() {
 
       {s.mode === "select" && !s.start && (
         <div className="hint">
-          <b>{t.hintDrag}</b> {t.hintDragRest} &nbsp;·&nbsp; <b>{t.hintClick}</b> {t.hintClickRest} &nbsp;·&nbsp; <b>Esc</b> {t.hintEscRest}
+          <b>{t.hintDrag}</b> {t.hintDragRest} &nbsp;·&nbsp; <b>{t.hintClick}</b> {t.hintClickRest} &nbsp;·&nbsp; <b>{t.hintScroll}</b> {t.hintScrollRest} &nbsp;·&nbsp; <b>Esc</b> {t.hintEscRest}
           {hotkey.current && (
             <div className="hint-key">
               {t.hintNext} <kbd>{hotkey.current}</kbd>
@@ -338,9 +497,15 @@ export function Overlay() {
         </div>
       )}
 
-      {selCss && s.mode !== "idle" && (
+      {s.mode === "long" && (
+        <div className="hint">
+          <b>{t.hintScroll}</b> {t.longMore} &nbsp;·&nbsp; <b>Esc</b> {t.longSave} &nbsp;·&nbsp; <b>{t.hintClick}</b> {t.longMark}
+        </div>
+      )}
+
+      {selCss && s.mode !== "idle" && !s.tall && (
         <div className="size" style={{ left: selCss.x, top: Math.max(selCss.y - 28, 4) }}>
-          {Math.round(s.sel!.w)} × {Math.round(s.sel!.h)}
+          {Math.round(s.sel!.w)} × {s.mode === "long" ? s.longH : Math.round(s.sel!.h)}
         </div>
       )}
 
@@ -379,6 +544,7 @@ export function Overlay() {
             />
           );
         })()}
+      </div>
 
       {s.mode === "edit" && bar && (
         <div className="bar" style={bar} onPointerDown={(e) => e.stopPropagation()}>

@@ -207,6 +207,8 @@ export function render(
   shapes: Shape[],
   s: number,
   editing: number | null = null,
+  /** During a long screenshot: the area as it is now, drawn over the frozen image. */
+  live: CanvasImageSource | null = null,
 ) {
   const { width: W, height: H } = ctx.canvas;
   ctx.clearRect(0, 0, W, H);
@@ -221,6 +223,7 @@ export function render(
   ctx.restore();
 
   if (!sel) return;
+  if (live) ctx.drawImage(live, sel.x, sel.y, sel.w, sel.h);
   ctx.save();
   ctx.beginPath();
   ctx.rect(sel.x, sel.y, sel.w, sel.h);

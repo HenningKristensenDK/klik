@@ -67,7 +67,7 @@ jobs:
           npm run typecheck
           npx tauri build
 
-      - name: Test Klik core (Studio file access, deck parsing)
+      - name: Test Klik core (Studio file access, deck parsing, long screenshot stitching)
         working-directory: app/src-tauri
         run: cargo test --lib --release
 

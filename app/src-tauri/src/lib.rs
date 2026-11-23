@@ -6,11 +6,15 @@
 //! Flow: hotkey -> capture the monitor under the cursor -> the overlay window
 //! covers that monitor and shows the frozen image -> the user selects an area,
 //! which is saved to Pictures\Klik and put on the clipboard at once -> every
-//! marking updates both -> Esc closes.
+//! marking updates both -> Esc closes. The wheel on a selected area makes a
+//! long screenshot (see "Long screenshot" below).
+
+mod stitch;
 
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 use tauri::ipc::{InvokeBody, Request, Response};
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
@@ -188,15 +192,299 @@ fn capture_async(app: &AppHandle) {
 }
 
 /// Image bytes for the overlay: 8-byte header (width, height as u32 LE) + RGBA.
-#[tauri::command]
-fn get_shot(shot: tauri::State<'_, Shot>) -> Result<Response, String> {
-    let guard = shot.0.lock().unwrap();
-    let (w, h, rgba) = guard.as_ref().ok_or("no capture")?;
+fn shot_bytes(w: u32, h: u32, rgba: &[u8]) -> Vec<u8> {
     let mut out = Vec::with_capacity(8 + rgba.len());
     out.extend_from_slice(&w.to_le_bytes());
     out.extend_from_slice(&h.to_le_bytes());
     out.extend_from_slice(rgba);
+    out
+}
+
+#[tauri::command]
+fn get_shot(shot: tauri::State<'_, Shot>) -> Result<Response, String> {
+    let guard = shot.0.lock().unwrap();
+    let (w, h, rgba) = guard.as_ref().ok_or("no capture")?;
+    Ok(Response::new(shot_bytes(*w, *h, rgba)))
+}
+
+// ---------- Long screenshot ----------
+// After an area is selected, the wheel makes a long screenshot. Each wheel
+// step goes to the window below the editor, the area is grabbed with the
+// editor left out of the picture, and `stitch` joins the grabs into one tall
+// image. Down only.
+
+/// A long screenshot in progress.
+struct LongShot {
+    stitch: stitch::Stitcher,
+    /// The monitor's top-left corner, to find it again for each grab.
+    origin: (i32, i32),
+    /// The selected area in monitor pixels: x, y, w, h.
+    area: [u32; 4],
+    /// How far the page moved per wheel notch at the last step.
+    per_notch: Option<f64>,
+}
+
+impl LongShot {
+    /// Notches to send in one step: enough to move about half the area, so
+    /// the next grab still overlaps the last one.
+    fn notches(&self) -> u32 {
+        match self.per_notch {
+            Some(p) if p >= 1.0 => ((self.area[3] as f64 * 0.5 / p).floor() as u32).clamp(1, 5),
+            _ => 1,
+        }
+    }
+}
+
+#[derive(Default)]
+struct Long(Mutex<Option<LongShot>>);
+
+/// Wheel notches waiting to be sent. One worker thread sends them.
+static LONG_PENDING: AtomicU32 = AtomicU32::new(0);
+static LONG_WORKING: AtomicBool = AtomicBool::new(false);
+static LONG_STOP: AtomicBool = AtomicBool::new(false);
+
+/// The editor's canvas cannot be taller than 32767 px.
+const LONG_MAX_H: u32 = 30_000;
+
+/// Runs `f` on the main (window) thread and waits for its result. Never call
+/// this from the main thread itself.
+fn on_main<R: Send + 'static>(app: &AppHandle, f: impl FnOnce() -> R + Send + 'static) -> Result<R, String> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    app.run_on_main_thread(move || {
+        let _ = tx.send(f());
+    })
+    .map_err(err)?;
+    rx.recv_timeout(Duration::from_secs(2)).map_err(err)
+}
+
+/// Windows calls for the long screenshot.
+#[cfg(windows)]
+mod long_win {
+    use windows::Win32::Foundation::{HWND, POINT, RECT};
+    use windows::Win32::Graphics::Gdi::{CombineRgn, CreateRectRgn, DeleteObject, SetWindowRgn, HGDIOBJ, RGN_DIFF};
+    use windows::Win32::UI::Input::KeyboardAndMouse::{SendInput, INPUT, INPUT_0, INPUT_MOUSE, MOUSEEVENTF_WHEEL, MOUSEINPUT};
+    use windows::Win32::UI::WindowsAndMessaging::{GetCursorPos, GetWindowRect, SetWindowDisplayAffinity, WDA_EXCLUDEFROMCAPTURE, WDA_NONE};
+
+    fn hwnd(raw: isize) -> HWND {
+        HWND(raw as *mut core::ffi::c_void)
+    }
+
+    /// Leaves the window out of screen captures (BitBlt included); it stays
+    /// visible on the screen. Needs Windows 10 2004 or later.
+    pub fn exclude(raw: isize, on: bool) -> bool {
+        let mode = if on { WDA_EXCLUDEFROMCAPTURE } else { WDA_NONE };
+        unsafe { SetWindowDisplayAffinity(hwnd(raw), mode).is_ok() }
+    }
+
+    /// Cuts a 3 x 3 pixel hole in the window under the mouse pointer, so the
+    /// wheel reaches the window below. The pointer hides the hole. `false`
+    /// closes it again.
+    pub fn hole(raw: isize, open: bool) {
+        let h = hwnd(raw);
+        unsafe {
+            if !open {
+                let _ = SetWindowRgn(h, None, false);
+                return;
+            }
+            let mut p = POINT::default();
+            let mut r = RECT::default();
+            if GetCursorPos(&mut p).is_err() || GetWindowRect(h, &mut r).is_err() {
+                return;
+            }
+            let (x, y) = (p.x - r.left, p.y - r.top);
+            let full = CreateRectRgn(0, 0, r.right - r.left, r.bottom - r.top);
+            let cut = CreateRectRgn(x - 1, y - 1, x + 2, y + 2);
+            let _ = CombineRgn(Some(full), Some(full), Some(cut), RGN_DIFF);
+            let _ = DeleteObject(HGDIOBJ(cut.0));
+            let _ = SetWindowRgn(h, Some(full), false); // Windows owns `full` now
+        }
+    }
+
+    /// Turns the wheel `notches` steps down, as the mouse does.
+    pub fn wheel_down(notches: u32) {
+        let mi = MOUSEINPUT { mouseData: (-120 * notches as i32) as u32, dwFlags: MOUSEEVENTF_WHEEL, ..Default::default() };
+        let input = INPUT { r#type: INPUT_MOUSE, Anonymous: INPUT_0 { mi } };
+        unsafe {
+            SendInput(&[input], std::mem::size_of::<INPUT>() as i32);
+        }
+    }
+}
+
+/// The editor's window handle as a number, which can cross threads.
+#[cfg(windows)]
+fn raw_hwnd(win: &WebviewWindow) -> Result<isize, String> {
+    Ok(win.hwnd().map_err(err)?.0 as isize)
+}
+
+/// Grabs the area from the screen. The editor is left out of the capture.
+fn grab(origin: (i32, i32), area: [u32; 4]) -> Result<stitch::Frame, String> {
+    let mon = xcap::Monitor::from_point(origin.0, origin.1).map_err(err)?;
+    let img = mon.capture_region(area[0], area[1], area[2], area[3]).map_err(err)?;
+    let (w, h) = img.dimensions();
+    Ok(stitch::Frame { w, h, px: img.into_raw() })
+}
+
+/// Grabs until two grabs in a row are equal: smooth scrolling has stopped.
+fn grab_settled(origin: (i32, i32), area: [u32; 4]) -> Result<stitch::Frame, String> {
+    let start = Instant::now();
+    std::thread::sleep(Duration::from_millis(80));
+    let mut a = grab(origin, area)?;
+    loop {
+        std::thread::sleep(Duration::from_millis(60));
+        let b = grab(origin, area)?;
+        if b.px == a.px || start.elapsed() > Duration::from_millis(900) {
+            return Ok(b);
+        }
+        a = b;
+    }
+}
+
+/// Sends `n` wheel notches to the window below the editor.
+#[cfg(windows)]
+fn wheel_below(app: &AppHandle, win: &WebviewWindow, n: u32) -> Result<(), String> {
+    let raw = raw_hwnd(win)?;
+    on_main(app, move || long_win::hole(raw, true))?;
+    long_win::wheel_down(n);
+    // Windows routes the wheel to the window under the pointer when it takes
+    // the input from the queue, a moment after SendInput returns.
+    std::thread::sleep(Duration::from_millis(50));
+    on_main(app, move || long_win::hole(raw, false))
+}
+
+#[cfg(not(windows))]
+fn wheel_below(_: &AppHandle, _: &WebviewWindow, _: u32) -> Result<(), String> {
+    Err("long screenshots need Windows".into())
+}
+
+/// Sends the waiting notches, a few at a time, and stitches each grab.
+fn long_worker(app: AppHandle) {
+    loop {
+        if LONG_STOP.load(Ordering::SeqCst) {
+            break;
+        }
+        let want = LONG_PENDING.swap(0, Ordering::SeqCst);
+        if want == 0 {
+            LONG_WORKING.store(false, Ordering::SeqCst);
+            // A notch may have come in after the swap.
+            if LONG_PENDING.load(Ordering::SeqCst) > 0 && !LONG_WORKING.swap(true, Ordering::SeqCst) {
+                continue;
+            }
+            return;
+        }
+        let job = app.state::<Long>().0.lock().unwrap().as_ref().map(|l| (l.origin, l.area, l.notches()));
+        let (Some((origin, area, most)), Some(win)) = (job, overlay(&app)) else { break };
+        let n = want.min(most);
+        if want > n {
+            LONG_PENDING.fetch_add(want - n, Ordering::SeqCst);
+        }
+        if let Err(e) = wheel_below(&app, &win, n) {
+            eprintln!("klik: wheel failed: {e}");
+            break;
+        }
+        let frame = match grab_settled(origin, area) {
+            Ok(f) => f,
+            Err(e) => {
+                eprintln!("klik: grab failed: {e}");
+                break;
+            }
+        };
+        let height = {
+            let state = app.state::<Long>();
+            let mut guard = state.0.lock().unwrap();
+            let Some(long) = guard.as_mut() else { break };
+            if let stitch::Step::Added(d) = long.stitch.push(frame) {
+                long.per_notch = Some(d as f64 / n as f64);
+            }
+            long.stitch.height()
+        };
+        let _ = win.emit("long-progress", height);
+    }
+    LONG_WORKING.store(false, Ordering::SeqCst);
+}
+
+/// The first wheel step on a selected area: leave the editor out of screen
+/// captures and grab the area as it is now. Area in monitor pixels.
+#[tauri::command(async)]
+fn long_start(app: AppHandle, x: u32, y: u32, w: u32, h: u32) -> Result<(), String> {
+    let win = overlay(&app).ok_or("overlay window missing")?;
+    let pos = win.outer_position().map_err(err)?;
+    let origin = (pos.x, pos.y);
+    #[cfg(windows)]
+    {
+        let raw = raw_hwnd(&win)?;
+        if !on_main(&app, move || long_win::exclude(raw, true))? {
+            return Err("the editor could not be left out of the capture".into());
+        }
+        // Let the screen redraw without the editor before the first grab.
+        std::thread::sleep(Duration::from_millis(120));
+    }
+    let first = grab(origin, [x, y, w.max(1), h.max(1)])?;
+    LONG_STOP.store(false, Ordering::SeqCst);
+    LONG_PENDING.store(0, Ordering::SeqCst);
+    *app.state::<Long>().0.lock().unwrap() = Some(LongShot {
+        stitch: stitch::Stitcher::new(first, LONG_MAX_H),
+        origin,
+        area: [x, y, w.max(1), h.max(1)],
+        per_notch: None,
+    });
+    Ok(())
+}
+
+/// One or more wheel notches down from the editor.
+#[tauri::command]
+fn long_step(app: AppHandle, notches: u32) {
+    if app.state::<Long>().0.lock().unwrap().is_none() {
+        return;
+    }
+    LONG_PENDING.fetch_add(notches.min(20), Ordering::SeqCst);
+    if !LONG_WORKING.swap(true, Ordering::SeqCst) {
+        std::thread::spawn(move || long_worker(app));
+    }
+}
+
+/// The latest grab of the area, for the live view (same format as `get_shot`).
+#[tauri::command]
+fn long_frame(long: tauri::State<'_, Long>) -> Result<Response, String> {
+    let guard = long.0.lock().unwrap();
+    let l = guard.as_ref().ok_or("no long screenshot")?;
+    Ok(Response::new(shot_bytes(l.area[2], l.area[3], l.stitch.last_frame())))
+}
+
+/// Ends the long screenshot: the tall image becomes the capture the editor
+/// shows and saves (same format as `get_shot`).
+#[tauri::command(async)]
+fn long_finish(app: AppHandle) -> Result<Response, String> {
+    LONG_STOP.store(true, Ordering::SeqCst);
+    let t = Instant::now();
+    while LONG_WORKING.load(Ordering::SeqCst) && t.elapsed() < Duration::from_secs(3) {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    LONG_PENDING.store(0, Ordering::SeqCst);
+    let long = app.state::<Long>().0.lock().unwrap().take().ok_or("no long screenshot")?;
+    #[cfg(windows)]
+    if let Some(win) = overlay(&app) {
+        let raw = raw_hwnd(&win)?;
+        on_main(&app, move || long_win::exclude(raw, false))?;
+    }
+    let (w, h, px) = long.stitch.finish();
+    let out = shot_bytes(w, h, &px);
+    *app.state::<Shot>().0.lock().unwrap() = Some((w, h, px));
     Ok(Response::new(out))
+}
+
+/// Drops a long screenshot left running when the editor closes. Runs on the
+/// main thread (from `close`), so it calls Windows directly.
+fn long_cancel(app: &AppHandle, window: &WebviewWindow) {
+    LONG_STOP.store(true, Ordering::SeqCst);
+    LONG_PENDING.store(0, Ordering::SeqCst);
+    if app.state::<Long>().0.lock().unwrap().take().is_some() {
+        #[cfg(windows)]
+        if let Ok(raw) = raw_hwnd(window) {
+            long_win::exclude(raw, false);
+            long_win::hole(raw, false);
+        }
+    }
+    let _ = window;
 }
 
 /// Called by the overlay page once it listens for captures.
@@ -305,6 +593,7 @@ fn save_copy(app: AppHandle, request: Request<'_>) -> Result<String, String> {
 #[tauri::command]
 fn close(app: AppHandle, window: WebviewWindow, discard: bool) -> Result<(), String> {
     release_escape(&app);
+    long_cancel(&app, &window);
     window.hide().map_err(err)?;
     if RETURN_TO_STUDIO.swap(false, Ordering::SeqCst) {
         open_studio(&app);
@@ -331,6 +620,7 @@ fn close(app: AppHandle, window: WebviewWindow, discard: bool) -> Result<(), Str
 #[tauri::command]
 fn close_to_studio(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
     release_escape(&app);
+    long_cancel(&app, &window);
     window.hide().map_err(err)?;
     RETURN_TO_STUDIO.store(false, Ordering::SeqCst);
     app.state::<Shot>().0.lock().unwrap().take();
@@ -800,6 +1090,7 @@ pub fn run() {
         .manage(Hotkey::default())
         .manage(CurrentFile::default())
         .manage(Editing::default())
+        .manage(Long::default())
         .invoke_handler(tauri::generate_handler![
             get_shot,
             show_overlay,
@@ -814,7 +1105,11 @@ pub fn run() {
             read_capture,
             save_export,
             open_exports,
-            list_claude_drafts
+            list_claude_drafts,
+            long_start,
+            long_step,
+            long_frame,
+            long_finish
         ])
         .setup(move |app| {
             use tauri_plugin_global_shortcut::GlobalShortcutExt;

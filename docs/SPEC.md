@@ -1,6 +1,6 @@
 # Klik: product specification
 
-Version 0.11, 2026.11.18. Owner: Henning Kristensen (RTPM).
+Version 0.12, 2026.11.23. Owner: Henning Kristensen (RTPM).
 The name Klik is decided (2026.11.17).
 
 This spec records Henning's wishes for a simple screen capture tool that covers the most-used Snagit features with far fewer clicks. Each requirement says where it stands: **Built** (code exists and was tested in a browser, not yet on Windows), **Planned**, or **Open** (a decision is still needed). What comes next is in `ROADMAP.md`.
@@ -82,12 +82,16 @@ Priority: **Must** = MVP, **Should** = next release, **Could** = later.
 - Esc works even when the editor did not get the keyboard (Built, 0.2.6, untested on Windows). Windows can refuse focus to a window that opens while another program is in front; Klik then catches Esc itself while the editor is open. The hotkey pressed while the editor is open brings it forward instead of being ignored. Reason: Henning's editor stayed open behind other windows and no new screenshots were saved (2026.11.18).
 - **Accept when:** selecting an area and pressing `Ctrl+V` in Teams pastes it with no other key; after adding arrows, `Ctrl+V` pastes the marked version.
 
-### F5. Scrolling capture: Must, Planned
+### F5. Long screenshot (scrolling capture): Must, Built 0.3.0, untested on Windows
 
-- One hotkey, then one click in the window to capture. Klik scrolls by itself and stitches one long image.
-- If automatic scrolling fails, a fallback mode lets the user scroll by hand while Klik stitches.
-- The result opens in the same editor (F2–F4).
-- **Accept when:** a long page in Chrome, Outlook and SharePoint comes out as one image with no visible seams or repeated headers.
+- The main path is the mouse wheel by hand: hotkey, drag an area, then turn the wheel down. No button; the hint line says "Scroll = long image" ("Scroll = langt billede").
+- Each wheel step goes to the window below the editor (a 3 x 3 pixel hole under the pointer for a moment, then `SendInput`). Klik waits until the page stops moving, grabs the area with the editor left out of the capture (`WDA_EXCLUDEFROMCAPTURE`, Windows 10 2004 or later) and stitches by finding how far the rows moved. Rows that stay put at the top and bottom (a fixed header or footer) are kept once. Down only. While it runs, the area shows the page as it is now and the size label shows the height so far.
+- The capture ends at the first click, tool key or `Esc`. `Esc` (or `Enter`) saves the tall image to the clipboard and `Pictures\Klik` as a normal capture and closes. A click or a tool key opens the tall image in the editor at the scale it was taken at; the wheel scrolls the image so all of it can be marked, and every marking saves as today. `S` sends it to Studio.
+- The wheel starts a long screenshot only before the first marking, and not on a screenshot reopened from Studio. Height is capped at 30,000 px (the editor canvas limit).
+- Stitching lives in `app/src-tauri/src/stitch.rs`, unit-tested with synthetic images (plain scroll, sticky header and footer, no overlap, end of page, blank rows, height cap).
+- Automatic scrolling (one click in the window, Klik scrolls by itself), up-scroll and side-scroll: Planned, later.
+- **Accept when:** the TimeFlow dashboard scrolled 3 screens down, then `Esc`, gives one sharp PNG with no doubled rows; cost 1 drag + wheel + `Esc`. Also a long page in Chrome, Outlook and SharePoint comes out with no visible seams or repeated headers.
+- **Known risk:** if Windows' "Scroll inactive windows when I hover over them" is off, the wheel may not reach the window below; nothing is added then.
 
 ### F6. Step capture: Must, Planned
 
@@ -263,7 +267,7 @@ These targets are the pass/fail test. Henning does each task in Snagit and in Kl
 | Screenshot with steps 1–3 | `Ctrl+Alt+K` → drag → `A` → 3 drags → `Ctrl+V` | 1 + 3 drags |
 | 10-step guide | hotkey → your 10 clicks → hotkey | 0 extra clicks |
 | Video with indigo cursor | hotkey → drag → … → hotkey | 1 drag |
-| Long page | hotkey → click in window | 1 click |
+| Long page | `Ctrl+Alt+K` → drag → wheel down → `Esc` | 1 drag, 0 clicks |
 | Screenshot as a Studio slide | `Ctrl+Alt+K` → drag → markings → `S` | 1 drag, 0 clicks (or 1 click on "Studio") |
 | Older screenshot into the deck | in Studio: click it in the gallery | 1 click |
 | More markings on an older screenshot | in Studio: pencil → mark → `Esc` | 1 click |

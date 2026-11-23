@@ -1,6 +1,6 @@
 [package]
 name = "klik"
-version = "0.2.8"
+version = "0.3.0"
 description = "Klik - enkel screenshot"
 edition = "2021"
 
@@ -22,10 +22,12 @@ chrono = "0.4"
 sys-locale = "0.3"
 serde = { version = "1", features = ["derive"] }
 
-# The taskbar jump list (right-click on the Klik icon) and the app id.
+# The taskbar jump list (right-click on the Klik icon) and the app id; for the
+# long screenshot, the wheel sent to the window below and capture exclusion.
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.62", features = [
   "Win32_Foundation",
+  "Win32_Graphics_Gdi",
   "Win32_Storage_EnhancedStorage",
   "Win32_System_Com",
   "Win32_System_Com_StructuredStorage",
@@ -33,6 +35,8 @@ windows = { version = "0.62", features = [
   "Win32_UI_Shell",
   "Win32_UI_Shell_Common",
   "Win32_UI_Shell_PropertiesSystem",
+  "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_UI_WindowsAndMessaging",
 ] }
 
 [profile.release]

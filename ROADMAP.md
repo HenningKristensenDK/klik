@@ -2,7 +2,10 @@
 
 Klik grows one feature at a time, each as a new version. Ideas and votes: [issues](https://github.com/HenningKristensenDK/klik/issues).
 
-## Now (0.2)
+## Now (0.3)
+- 0.3.0 Long screenshot: select an area, then turn the mouse wheel. Klik scrolls the window below and stitches one tall image, with a fixed header kept once. `Esc` saves and copies it; a click opens it in the editor, where the wheel scrolls the image so you can mark all of it.
+
+## 0.2
 - Screenshot of the screen under the mouse, copied the moment you frame it.
 - Highlighter, numbered arrow, arrow with comment, pen, line.
 - Claude extension: Claude sees your screenshots and passes work between sessions.
@@ -18,12 +21,13 @@ Klik grows one feature at a time, each as a new version. Ideas and votes: [issue
 - 0.2.5: the RTPM app icon replaces the Klik icon. A click on the Klik icon on the taskbar opens Klik Studio; right-click it for "Take screenshot" or "Klik Studio". "New screenshot" in Studio takes one without the hotkey.
 
 ## Next
+- **0.4.0 Video of the area:** one video button (key `R`), webcam bubble, voice, 16:9, 4:5 or 1:1, MP4 to `Videos\Klik` and the clipboard.
 - **Microsoft Store:** one-click install, signed, automatic updates.
 - **Studio canvas and crop:** combine screenshots on one free canvas, and crop a screenshot so app text stays readable on a phone.
 - **Step capture:** one screenshot per click, as a numbered guide.
 
 ## Later
-- Screen video with an indigo cursor ring and click ripple, voice and webcam.
+- Cursor ring and click ripple in videos (0.4.1).
 - LinkedIn posts from a recording: Claude plans the cuts and captions, Klik renders 4:5, 9:16 and 16:9 video.
 - Claude writes the text for your step guides and posts.
-- Scrolling capture for long pages.
+- Long screenshot: Klik scrolls by itself after one click, and up-scroll and side-scroll.
