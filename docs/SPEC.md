@@ -218,7 +218,14 @@ A second window of Klik, ported from the separate Klik Content app (old repo, PR
 
 **S2b. Highlight by clicking words: Built (0.2.7, browser-tested).** The highlight is picked by clicking words in the headline (and in the body on rule slides): click a word to highlight it, a neighbour to extend, an end word to drop it. No typing, so it always matches. The check ignores case, so a highlight typed or written by Claude as "Project" matches "project".
 
-**S2. Studio window (C2): Built.** Recent screenshots from `Pictures\Klik` (newest 60); one click adds a screenshot slide. Slide kinds: cover (dark), screenshot (light), rule (light), text (light), closer (dark). A rule slide gets "Rule n of N" and the big indigo number automatically, a body with one indigo span, and an "In practice" line. Per slide: tag, headline, highlight, body, screenshot. Reorder, delete, add rule or text slide. The deck is saved automatically on the PC.
+**S2c. One-pager: Built (0.2.9, browser-tested, untested on Windows).** A sixth slide kind, "One-pager", for a single-image LinkedIn post: kicker (tag), headline, optional short text and six numbered cards in a 2 x 3 grid (3 x 2 on 16:9), light ground, profile footer. Reason: single infographics were 29% of the top 1% of LinkedIn posts in Q1 2026, against 6% for carousels, and 4:5 portrait images get the highest median engagement (research 2026.11.22). Henning asked for a 6-card layout (2026.11.23).
+- Add it with "+ One-pager" next to "+ Rule" and "+ Text" (one click), or pick "One-pager" as the type of any slide. Reason for the new button: the format must be reachable without changing an existing slide.
+- Each card has a title (at most 4 words; drawn on one line at 42 down to 34 px, else two lines) and a text (at most 8 words, Inter 36 px, the body floor). Text that does not fit is a "stop" and is clipped to its card, never drawn outside it.
+- One highlight per slide: click a card's number to draw that card on navy with a gold number, or pick words in the headline; both at once is a warning.
+- A deck of only one-pagers is not a carousel: no 6 to 9 slides warning, no page number in the footer, and Export writes the PNGs only (LinkedIn takes the image, not a PDF).
+- Claude's brief and draft format know the kind: `{"kind":"sheet","cards":[{"title":"","text":""}],"hiCard":null}`.
+
+**S2. Studio window (C2): Built.** Recent screenshots from `Pictures\Klik` (newest 60); one click adds a screenshot slide. Slide kinds: cover (dark), screenshot (light), rule (light), text (light), closer (dark), one-pager (light, S2c). A rule slide gets "Rule n of N" and the big indigo number automatically, a body with one indigo span, and an "In practice" line. Per slide: tag, headline, highlight, body, screenshot. Reorder, delete, add rule or text slide. The deck is saved automatically on the PC.
 
 **S3a. Profile on the card: Built (0.2.7, browser-tested).** The profile form left the slide column. Click your name or photo on the slide (the pointer shows it is clickable), or "Add your name and photo" under a slide that still shows the placeholder, and the profile opens in the right panel while the slide stays visible. "Done" or `Esc` goes back to the slide fields. It stays filled after a restart. 0.2.8: the preview keeps its 4:5 or 16:9 shape in a wide window (it was stretched to the full width with the height cut, so slide and screenshot looked squeezed and the click missed the name; Windows test 2026.11.22). Reason: the profile is typed once, so it should not take room on every visit (Henning 2026.11.22).
 
@@ -266,6 +273,7 @@ These targets are the pass/fail test. Henning does each task in Snagit and in Kl
 | Long page | hotkey → click in window | 1 click |
 | Screenshot as a Studio slide | `Ctrl+Alt+K` → drag → markings → `S` | 1 drag, 0 clicks (or 1 click on "Studio") |
 | Older screenshot into the deck | in Studio: click it in the gallery | 1 click |
+| One-pager with six cards | in Studio: "+ One-pager" → type headline and cards → Export | 2 clicks |
 | More markings on an older screenshot | in Studio: pencil → mark → `Esc` | 1 click |
 | Open Studio to see earlier screenshots | click the Klik icon on the taskbar | 1 click |
 | Screenshot without the hotkey | Klik icon → "New screenshot" → drag (or right-click the icon → "Take screenshot") | 2 clicks + 1 drag |

@@ -47,8 +47,11 @@ export async function exportDeck(fmt: Format, slides: Slide[], profile: Profile,
     const page = pdf.addPage([w, h]);
     page.drawImage(img, { x: 0, y: 0, width: w, height: h });
   }
-  const pdfName = fmt === "4x5" ? t.studio.pdf4x5 : t.studio.pdf16x9;
-  dir = await saveExport(folder, pdfName, await pdf.save());
-  files.unshift(pdfName);
+  // One-pagers are image posts: LinkedIn takes the PNG, so no PDF beside it.
+  if (slides.some((s) => s.kind !== "sheet")) {
+    const pdfName = fmt === "4x5" ? t.studio.pdf4x5 : t.studio.pdf16x9;
+    dir = await saveExport(folder, pdfName, await pdf.save());
+    files.unshift(pdfName);
+  }
   return { folder: dir, files, issues };
 }

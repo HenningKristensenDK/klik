@@ -13,7 +13,19 @@ import { t } from "../i18n";
 // body 36 px, any label 30 px (brand-tokens.json phone_legibility).
 
 export type Format = "4x5" | "16x9";
-export type Kind = "cover" | "shot" | "rule" | "text" | "closer";
+export type Kind = "cover" | "shot" | "rule" | "text" | "closer" | "sheet";
+
+/** One card on a one-pager (sheet slide). */
+export type Card = { title: string; text: string };
+
+/** A one-pager always has this many cards, in a 2 x 3 grid (4:5) or 3 x 2 (16:9). */
+export const SHEET_CARDS = 6;
+
+/** The six cards of a sheet slide, padded with empty ones. */
+export function sheetCards(s: Pick<Slide, "cards">): Card[] {
+  const c = s.cards ?? [];
+  return Array.from({ length: SHEET_CARDS }, (_, i) => ({ title: c[i]?.title ?? "", text: c[i]?.text ?? "" }));
+}
 
 export type Slide = {
   id: string;
@@ -29,6 +41,10 @@ export type Slide = {
   inPractice?: string;
   /** File name in Pictures\Klik (shot slides). */
   shot?: string;
+  /** The six cards (sheet slides). */
+  cards?: Card[];
+  /** Which card (0 to 5) is the one highlight, drawn on navy (sheet slides). */
+  hiCard?: number | null;
 };
 
 /** role = the title line under the name. experience = the one-line track record. */
@@ -418,10 +434,13 @@ function footer(g: CanvasRenderingContext2D, p: Profile, photo: ImageBitmap | nu
   g.font = `600 ${FLOOR.label}px ${TEXT}`;
   g.fillStyle = C.sec;
   g.fillText(fit(g, p.name, right - x - d - 200), x + d + 20, y + d / 2);
-  g.fillStyle = C.indigo;
-  g.textAlign = "right";
-  g.fillText(`${n}/${total}`, right, y + d / 2);
-  g.textAlign = "left";
+  // A one-slide post (a one-pager) has no page number.
+  if (total > 1) {
+    g.fillStyle = C.indigo;
+    g.textAlign = "right";
+    g.fillText(`${n}/${total}`, right, y + d / 2);
+    g.textAlign = "left";
+  }
 }
 
 /** Position of a rule slide among the deck's rule slides, for "Rule 1 of 4". */
@@ -435,7 +454,8 @@ const countWords = (t: string | undefined) => (t?.trim() ? t.trim().split(/\s+/)
 /** Brand checks that do not depend on drawing. */
 export function textIssues(s: Slide): Issue[] {
   const out: Issue[] = [];
-  const all = `${s.tag} ${s.headline} ${s.body} ${s.inPractice ?? ""}`;
+  const cardText = s.kind === "sheet" ? sheetCards(s).map((c) => `${c.title} ${c.text}`).join(" ") : "";
+  const all = `${s.tag} ${s.headline} ${s.body} ${s.inPractice ?? ""} ${cardText}`;
   if (/[—]/.test(all)) out.push({ level: "stop", text: t.studio.noDash });
   if (s.highlight.trim() && spanStart(s.headline, s.highlight) < 0)
     out.push({ level: "stop", text: t.studio.hlFromHeadline });
@@ -452,12 +472,108 @@ export function textIssues(s: Slide): Issue[] {
     if (!s.inPractice?.trim()) out.push({ level: "warn", text: t.studio.needInPractice });
     if (countWords(s.inPractice) > 25) out.push({ level: "warn", text: t.studio.inPracticeWords(countWords(s.inPractice)) });
   }
+  if (s.kind === "sheet") {
+    const cards = sheetCards(s);
+    const empty = cards.filter((c) => !c.title.trim()).length;
+    if (empty) out.push({ level: "warn", text: t.studio.sheetEmpty(empty) });
+    cards.forEach((c, i) => {
+      const tw = countWords(c.title);
+      const xw = countWords(c.text);
+      if (tw > 4) out.push({ level: "warn", text: t.studio.cardTitleWords(i + 1, tw) });
+      if (xw > 8) out.push({ level: "warn", text: t.studio.cardTextWords(i + 1, xw) });
+    });
+    if (s.highlight.trim() && s.hiCard != null) out.push({ level: "warn", text: t.studio.oneHighlightCard });
+  }
   // Placeholders in [brackets] are reminders, not claims, so their digits do not count.
-  if (/\d/.test(`${s.headline} ${s.body} ${s.inPractice ?? ""}`.replace(/\[[^\]]*\]/g, "")))
+  if (/\d/.test(`${s.headline} ${s.body} ${s.inPractice ?? ""} ${cardText}`.replace(/\[[^\]]*\]/g, "")))
     out.push({ level: "warn", text: t.studio.numbers });
   if (/https?:\/\/|www\.|\.dk\b|\.com\b/i.test(all)) out.push({ level: "stop", text: t.studio.noLinks });
   if (/\bAI-powered\b|\bunik\b|\bunique\b/i.test(s.headline)) out.push({ level: "stop", text: t.studio.noHype });
   return out;
+}
+
+/**
+ * One-pager (sheet slide): kicker, headline, optional subtitle and six numbered
+ * cards on the light ground. One card may be the highlight, drawn on navy with a
+ * gold number. The cards share the space left under the headline, so a short
+ * headline gives them more room. Floors as everywhere: card titles at least
+ * 34 px, card text 36 px; text that does not fit is a "stop".
+ */
+function sheetGrid(g: CanvasRenderingContext2D, issues: Issue[], s: Slide, x: number, top: number, w: number, bottom: number, cols: number) {
+  const rows = Math.ceil(SHEET_CARDS / cols);
+  const gap = 24;
+  const cw = (w - gap * (cols - 1)) / cols;
+  const rh = (bottom - top - gap * (rows - 1)) / rows;
+  if (rh < 180) issues.push({ level: "stop", text: t.studio.sheetFull });
+  const pad = 24;
+  const d = 50;
+  sheetCards(s).forEach((c, i) => {
+    const cx = x + (i % cols) * (cw + gap);
+    const cy = top + Math.floor(i / cols) * (rh + gap);
+    const hi = s.hiCard === i;
+    g.save();
+    if (!hi) {
+      g.shadowColor = "rgba(21,22,43,0.06)";
+      g.shadowBlur = 12;
+      g.shadowOffsetY = 3;
+    }
+    g.fillStyle = hi ? C.navy : C.card;
+    roundRect(g, cx, cy, cw, rh, 18);
+    g.fill();
+    g.restore();
+    if (!hi) {
+      g.strokeStyle = C.border;
+      g.lineWidth = 2;
+      roundRect(g, cx, cy, cw, rh, 18);
+      g.stroke();
+    }
+    // Number badge: navy with a white number, or gold with a navy number on the highlight.
+    g.fillStyle = hi ? C.gold : C.navy;
+    g.beginPath();
+    g.arc(cx + pad + d / 2, cy + pad + d / 2, d / 2, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = hi ? C.navy : "#FFFFFF";
+    g.font = `700 32px ${DISPLAY}`;
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    g.fillText(String(i + 1), cx + pad + d / 2, cy + pad + d / 2 + 2);
+    g.textAlign = "left";
+    const tx = cx + pad + d + 16;
+    const has = !!c.title.trim();
+    const what = t.studio.theCard(i + 1);
+    // Title: one line if it fits at 34 px or more, else two lines.
+    const tw = cx + cw - pad - tx;
+    const tf: FontFn = (px) => `700 ${px}px ${DISPLAY}`;
+    const tWords = words(has ? c.title : t.studio.cardTitlePh, "");
+    let tl = layout(g, tWords, tf, tf, tw, 42 * 1.05, 42, 34, 1.05);
+    if (tl.overflow) tl = layout(g, tWords, tf, tf, tw, 42 * 1.05 * 2, 42, 34, 1.05);
+    if (tl.overflow) issues.push({ level: "stop", text: t.studio.tooLong(what) });
+    g.save();
+    roundRect(g, cx, cy, cw, rh, 18);
+    g.clip(); // nothing too long is ever drawn outside its card
+    const titleH = tl.lines.length * tl.lineH;
+    const titleY = cy + pad + Math.max(0, (d - Math.min(titleH, tl.lineH)) / 2);
+    let ty = drawLaid(g, tl, tf, tf, tx, titleY, has ? (hi ? "#FFFFFF" : C.ink) : C.muted, C.ink);
+    ty = Math.max(ty, cy + pad + d) + 12;
+    block(g, issues, what, c.text, "", { family: TEXT, weight: 400, x: cx + pad, y: ty, w: cw - 2 * pad, h: cy + rh - pad + 8 - ty, max: FLOOR.body, min: FLOOR.body, lh: 1.3, color: hi ? C.onNavy : C.sec });
+    g.restore();
+  });
+}
+
+function drawSheet(g: CanvasRenderingContext2D, issues: Issue[], fmt: Format, s: Slide, index: number, total: number, p: Profile, a: Assets) {
+  const { w: W, h: H } = SIZE[fmt];
+  const wide = fmt === "16x9";
+  const M = wide ? 104 : 88;
+  const TOP = 104;
+  const CW = W - 2 * M;
+  const BOTTOM = H - M;
+  kicker(g, s.tag, M, TOP, C.indigo);
+  const top = s.tag.trim() ? TOP + 60 : TOP;
+  let y = block(g, issues, t.studio.theHeadline, s.headline, s.highlight, { family: DISPLAY, weight: 700, x: M, y: top, w: CW, h: wide ? 120 : 190, max: wide ? 96 : 84, min: FLOOR.headline, lh: 1.04, color: C.ink, hiColor: C.indigo });
+  y = block(g, issues, t.studio.theText, s.body, "", { family: TEXT, weight: 400, x: M, y: y + 18, w: CW, h: 110, max: FLOOR.body, min: FLOOR.body, lh: 1.4, color: C.sec });
+  // The cards end above the footer (72 px headshot) with the same gap as above them.
+  sheetGrid(g, issues, s, M, y + 40, CW, BOTTOM - 72 - 36, wide ? 3 : 2);
+  footer(g, p, a.photo, index + 1, total, M, W - M, BOTTOM);
 }
 
 /** `hits`, when given, collects the rectangles where the profile was drawn (slide pixels). */
@@ -481,6 +597,10 @@ function drawSlideInner(g: CanvasRenderingContext2D, fmt: Format, slides: Slide[
   g.fillStyle = dark ? C.navy : C.paper;
   g.fillRect(0, 0, W, H);
   if (dark) glow(g, W, H);
+  if (s.kind === "sheet") {
+    drawSheet(g, issues, fmt, s, index, total, p, a);
+    return issues;
+  }
   const rule = s.kind === "rule" ? ruleNo(slides, index) : null;
   const tag = rule && !s.tag.trim() ? `Rule ${rule.n} of ${rule.total}` : s.tag;
 
