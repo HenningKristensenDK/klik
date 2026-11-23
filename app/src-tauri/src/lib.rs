@@ -389,7 +389,8 @@ fn long_worker(app: AppHandle) {
             }
         };
         let height = {
-            let mut guard = app.state::<Long>().0.lock().unwrap();
+            let state = app.state::<Long>();
+            let mut guard = state.0.lock().unwrap();
             let Some(long) = guard.as_mut() else { break };
             if let stitch::Step::Added(d) = long.stitch.push(frame) {
                 long.per_notch = Some(d as f64 / n as f64);
