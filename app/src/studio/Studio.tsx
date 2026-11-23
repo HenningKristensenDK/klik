@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { lang, setLang, t } from "../i18n";
-import { DEFAULT_PROFILE, drawSlide, loadFonts, SIZE, spanStart, textIssues, type Assets, type Format, type Issue, type Kind, type Profile, type Slide } from "./render";
+import { DEFAULT_PROFILE, drawSlide, loadFonts, SHEET_CARDS, sheetCards, SIZE, spanStart, textIssues, type Assets, type Card, type Format, type Issue, type Kind, type Profile, type Slide } from "./render";
 import { editCapture, listCaptures, listClaudeDrafts, onAddShot, onCaptureSaved, openExports, readCapture, takeScreenshot, type Capture, type ClaudeDraft } from "./io";
 import { exportDeck } from "./export";
 
@@ -21,6 +21,11 @@ function blank(kind: Kind, shot?: string): Slide {
       return { id: uid(), kind, tag: "", headline: "Recognise this on your project?", highlight: "on your project?", body: "[One low-friction offer line]" };
     case "text":
       return { id: uid(), kind, tag: "", headline: "[One idea per slide]", highlight: "", body: "[Max 25 words]" };
+    case "sheet":
+      return {
+        id: uid(), kind, tag: "[Topic] cheat sheet", headline: "[What the reader gets, 5 to 7 words]", highlight: "", body: "",
+        cards: Array.from({ length: SHEET_CARDS }, () => ({ title: "", text: "" })), hiCard: null,
+      };
     case "rule":
       return { id: uid(), kind, tag: "", headline: "[The rule, 5 to 7 words]", highlight: "", body: "[Why it holds, max 25 words]", bodyHighlight: "", inPractice: "[What it looks like in the reader's own tools]" };
     default:
@@ -30,9 +35,9 @@ function blank(kind: Kind, shot?: string): Slide {
 
 type Saved = { fmt: Format; title: string; slides: Slide[]; profile: Profile; angle?: string };
 
-const KINDS: Kind[] = ["cover", "shot", "rule", "text", "closer"];
+const KINDS: Kind[] = ["cover", "shot", "rule", "text", "closer", "sheet"];
 
-type RawSlide = Partial<Slide> & { body_highlight?: string; in_practice?: string };
+type RawSlide = Partial<Omit<Slide, "cards">> & { body_highlight?: string; in_practice?: string; hi_card?: number; cards?: Partial<Card>[] };
 
 function withDefaults(p: Partial<Profile> | undefined): Profile {
   return {
@@ -62,6 +67,10 @@ function parseDeck(raw: string): { fmt?: Format; title?: string; angle?: string;
       bodyHighlight: r.bodyHighlight ?? r.body_highlight ?? "",
       inPractice: r.inPractice ?? r.in_practice ?? "",
       shot: r.shot,
+      ...(kind === "sheet" && {
+        cards: sheetCards({ cards: (Array.isArray(r.cards) ? r.cards : []).map((c) => ({ title: String(c?.title ?? ""), text: String(c?.text ?? "") })) }),
+        hiCard: typeof (r.hiCard ?? r.hi_card) === "number" ? (r.hiCard ?? r.hi_card) : null,
+      }),
     } as Slide;
   });
   const fmt = obj.format === "16x9" || obj.format === "16:9" ? "16x9" : obj.format === "4x5" || obj.format === "4:5" ? "4x5" : undefined;
@@ -424,7 +433,9 @@ export function Studio() {
 
   const allIssues = useMemo(() => slides.flatMap((s, i) => textIssues(s).map((x) => ({ n: i + 1, ...x }))), [slides]);
   const count = slides.length;
-  const lengthWarn = fmt === "4x5" && (count < 6 || count > 9) ? t.studio.lengthWarn(count) : "";
+  // A deck of only one-pagers is single-image posts, not a carousel: no length rule.
+  const onlySheets = slides.every((s) => s.kind === "sheet");
+  const lengthWarn = fmt === "4x5" && !onlySheets && (count < 6 || count > 9) ? t.studio.lengthWarn(count) : "";
 
   const doExport = async () => {
     setBusy(t.studio.exporting);
@@ -444,17 +455,19 @@ export function Studio() {
   const claudeBrief = () => {
     const shots = slides.filter((s) => s.shot).map((s) => s.shot);
     return [
-      `Make a ${fmt === "4x5" ? "4:5 LinkedIn carousel (6 to 9 slides)" : "16:9 presentation for a demo or user walkthrough"} in Klik Studio.`,
+      onlySheets
+        ? `Make a ${fmt === "4x5" ? "4:5" : "16:9"} LinkedIn one-pager in Klik Studio: one slide of kind sheet.`
+        : `Make a ${fmt === "4x5" ? "4:5 LinkedIn carousel (6 to 9 slides)" : "16:9 presentation for a demo or user walkthrough"} in Klik Studio.`,
       `Audience and angle: ${angle.trim() || "[who it is for, and the situation they recognise]"}.`,
       shots.length
         ? `Use these Klik screenshots: ${shots.join(", ")}. Look at each one with klik_get_capture.`
         : "Look at my recent screenshots with klik_list_captures and klik_get_capture, and pick the ones that tell the story.",
       "Story arc: a recognisable project situation, the usual answer, the turn, what they see (one item, one owner), why it holds, the offer.",
       "Writing rules: sentence case, no em-dashes, headline 5 to 7 words, body max 25 words, one highlight of 1 to 4 words taken from the headline, show do not pitch, no URLs, no unapproved numbers (write [placeholder]), sample data labelled. Never describe a customer system unless I say the customer approved it.",
-      "Slide kinds: cover (dark: tag names the topic, body names the reader), shot (one screenshot, light), rule (light: one rule, body with one bodyHighlight span, and inPractice saying what the rule looks like in the reader's own tools; numbered automatically), text (light), closer (dark, one question or offer).",
+      "Slide kinds: cover (dark: tag names the topic, body names the reader), shot (one screenshot, light), rule (light: one rule, body with one bodyHighlight span, and inPractice saying what the rule looks like in the reader's own tools; numbered automatically), text (light), closer (dark, one question or offer), sheet (light one-pager: tag names the topic, headline says what the reader gets, body is optional and short, exactly 6 cards each with a title of max 4 words and a text of max 8 words; hiCard is the index 0 to 5 of the one card to highlight, or null).",
       "One highlight per slide: on a rule slide use bodyHighlight or highlight, not both.",
       "When done, save it with handoff_write. Title starts with \"Klik deck:\". In the text, put the deck in a fenced block marked klik-deck containing JSON:",
-      '{"format":"' + fmt + '","title":"...","angle":"...","slides":[{"kind":"cover|shot|rule|text|closer","shot":"file name or omit","tag":"","headline":"","highlight":"","body":"","bodyHighlight":"rule only","inPractice":"rule only"}]}',
+      '{"format":"' + fmt + '","title":"...","angle":"...","slides":[{"kind":"cover|shot|rule|text|closer|sheet","shot":"file name or omit","tag":"","headline":"","highlight":"","body":"","bodyHighlight":"rule only","inPractice":"rule only","cards":[{"title":"","text":""}],"hiCard":null}]}',
       "Then tell me in two lines which angle you chose and why.",
     ].join("\n");
   };
@@ -568,6 +581,7 @@ export function Studio() {
         <div className="row">
           <button className="ghost sm" onClick={() => insertBeforeCloser(blank("rule"))}>{t.studio.addRule}</button>
           <button className="ghost sm" onClick={() => insertBeforeCloser(blank("text"))}>{t.studio.addText}</button>
+          <button className="ghost sm" title={t.studio.addSheetTitle} onClick={() => insertBeforeCloser(blank("sheet"))}>{t.studio.addSheet}</button>
         </div>
         {lengthWarn && <p className="warn">{lengthWarn}</p>}
       </nav>
@@ -631,6 +645,23 @@ export function Studio() {
               <div className="fld">{t.studio.bodyHighlight}<WordPick text={current.body} value={current.bodyHighlight ?? ""} onChange={(v) => update({ bodyHighlight: v })} /></div>
               <label className="fld">{t.studio.inPractice}<textarea rows={2} value={current.inPractice ?? ""} onChange={(e) => update({ inPractice: e.target.value })} /></label>
             </>
+          )}
+          {current.kind === "sheet" && (
+            <div className="fld">{t.studio.cards}
+              <ol className="cards">
+                {sheetCards(current).map((c, i) => {
+                  const set = (patch: Partial<Card>) => update({ cards: sheetCards(current).map((x, j) => (j === i ? { ...x, ...patch } : x)) });
+                  const on = current.hiCard === i;
+                  return (
+                    <li key={i}>
+                      <button type="button" className={on ? "on" : ""} aria-pressed={on} title={t.studio.highlight} onClick={() => update({ hiCard: on ? null : i })}>{i + 1}</button>
+                      <input value={c.title} placeholder={t.studio.cardTitle(i + 1)} aria-label={t.studio.cardTitle(i + 1)} onChange={(e) => set({ title: e.target.value })} />
+                      <input value={c.text} placeholder={t.studio.cardText} aria-label={`${t.studio.theCard(i + 1)}: ${t.studio.cardText}`} onChange={(e) => set({ text: e.target.value })} />
+                    </li>
+                  );
+                })}
+              </ol>
+            </div>
           )}
           {current.kind === "shot" && (
             <label className="fld">{t.studio.screenshot}

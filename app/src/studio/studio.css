@@ -137,3 +137,9 @@ p.warn { font-size: 13px; background: #fdf4dd; color: #8a6600; padding: 7px 10px
 .drafts li { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 9px; }
 .claude details { font-size: 13px; color: var(--text-2); display: flex; flex-direction: column; gap: 6px; }
 .claude details textarea { margin: 6px 0; }
+/* One-pager cards: number (click = highlight), title, text. */
+.cards { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.cards li { display: grid; grid-template-columns: 30px 1fr; grid-template-rows: auto auto; gap: 4px 8px; }
+.cards li button { grid-row: span 2; width: 30px; height: 30px; border-radius: 15px; border: 1px solid var(--border); background: #fff; color: var(--text); font-weight: 600; font-size: 13px; padding: 0; }
+.cards li button:hover { border-color: var(--indigo); }
+.cards li button.on { background: var(--indigo); border-color: var(--indigo); color: #fff; }
