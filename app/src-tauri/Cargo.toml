@@ -1,6 +1,6 @@
 [package]
 name = "klik"
-version = "0.2.7"
+version = "0.2.8"
 description = "Klik - enkel screenshot"
 edition = "2021"
 

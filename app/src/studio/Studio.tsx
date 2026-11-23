@@ -401,9 +401,8 @@ export function Studio() {
   /** Is this mouse position on the profile drawn in the preview? */
   const onProfile = (e: React.MouseEvent<HTMLElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
-    const k = SIZE[fmt].w / r.width;
-    const x = (e.clientX - r.left) * k;
-    const y = (e.clientY - r.top) * k;
+    const x = (e.clientX - r.left) * (SIZE[fmt].w / r.width);
+    const y = (e.clientY - r.top) * (SIZE[fmt].h / r.height);
     return hits.current.some(([hx, hy, hw, hh]) => x >= hx && x <= hx + hw && y >= hy && y <= hy + hh);
   };
 
@@ -577,7 +576,7 @@ export function Studio() {
         <div className="preview-wrap">
           <div
             className={`preview ${overProfile ? "over-profile" : ""}`}
-            style={{ aspectRatio: `${w} / ${h}` }}
+            style={{ aspectRatio: `${w} / ${h}`, ["--ar" as string]: w / h }}
             title={overProfile ? t.studio.editProfile : undefined}
             onMouseMove={(e) => setOverProfile(onProfile(e))}
             onMouseLeave={() => setOverProfile(false)}
