@@ -199,10 +199,88 @@ export function drawShape(ctx: CanvasRenderingContext2D, sh: Shape, s: number, b
   ctx.restore();
 }
 
-/** Draw the screen, the dimmed surroundings and the annotations. */
 /** Navy over the screen: light while you pick the area, so you see what to
- *  frame; dark around a framed area, so the eye stays on it. */
-export const DIM = { picking: 0.3, framed: 0.8 };
+ *  frame; darker around a framed area, so the eye stays on it and the rest
+ *  still reads. */
+export const DIM = { picking: 0.3, framed: 0.55 };
+
+// ---------- Moving and deleting markings ----------
+
+/** The points that define a marking, for hit tests and its frame. */
+function keyPoints(sh: Shape, s: number): Pt[] {
+  if ("pts" in sh) return sh.pts;
+  if (sh.kind === "callout") {
+    const { box } = calloutLayout(sh.text || " ", sh.a, s);
+    return [sh.b, { x: box.x, y: box.y }, { x: box.x + box.w, y: box.y + box.h }];
+  }
+  return [sh.a, sh.b];
+}
+
+/** How far from its line a press still counts as on the marking. */
+function reach(sh: Shape, s: number): number {
+  if (sh.kind === "highlight") return (SIZE.highlight / 2 + 4) * s;
+  if (sh.kind === "arrow") return (SIZE.badge + 4) * s;
+  return 10 * s;
+}
+
+function distToSegment(p: Pt, a: Pt, b: Pt): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len2 = dx * dx + dy * dy;
+  const t = len2 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2)) : 0;
+  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+}
+
+/** The topmost marking under `p`, or -1. */
+export function hitShape(shapes: Shape[], p: Pt, s: number): number {
+  for (let i = shapes.length - 1; i >= 0; i--) {
+    const sh = shapes[i];
+    const r = reach(sh, s);
+    if (sh.kind === "callout") {
+      const { box } = calloutLayout(sh.text || " ", sh.a, s);
+      if (inside({ x: box.x - r / 2, y: box.y - r / 2, w: box.w + r, h: box.h + r }, p)) return i;
+      if (distToSegment(p, sh.a, sh.b) <= r) return i;
+      continue;
+    }
+    const pts = "pts" in sh ? sh.pts : [sh.a, sh.b];
+    if (pts.length === 1 && Math.hypot(p.x - pts[0].x, p.y - pts[0].y) <= r) return i;
+    for (let j = 1; j < pts.length; j++) if (distToSegment(p, pts[j - 1], pts[j]) <= r) return i;
+  }
+  return -1;
+}
+
+/** The marking moved by dx, dy. */
+export function moveShape(sh: Shape, dx: number, dy: number): Shape {
+  const m = (q: Pt) => ({ x: q.x + dx, y: q.y + dy });
+  switch (sh.kind) {
+    case "highlight":
+    case "pen":
+      return { ...sh, pts: sh.pts.map(m) };
+    case "line":
+    case "arrow":
+    case "callout":
+      return { ...sh, a: m(sh.a), b: m(sh.b) };
+  }
+}
+
+/** The frame drawn around a picked marking. Image pixels. */
+export function shapeFrame(sh: Shape, s: number): Rect {
+  const pts = keyPoints(sh, s);
+  const pad = reach(sh, s) + 4 * s;
+  const xs = pts.map((q) => q.x);
+  const ys = pts.map((q) => q.y);
+  const x = Math.min(...xs) - pad;
+  const y = Math.min(...ys) - pad;
+  return { x, y, w: Math.max(...xs) + pad - x, h: Math.max(...ys) + pad - y };
+}
+
+/** Numbered arrows count 1, 2, 3 again after one is deleted. */
+export function renumber(shapes: Shape[]): Shape[] {
+  let n = 0;
+  return shapes.map((sh) => (sh.kind === "arrow" ? { ...sh, n: ++n } : sh));
+}
+
+/** Draw the screen, the dimmed surroundings and the annotations. */
 
 export function render(
   ctx: CanvasRenderingContext2D,
@@ -215,6 +293,8 @@ export function render(
   live: CanvasImageSource | null = null,
   /** How much RTPM Navy covers the screen outside the selection, 0 to 1. */
   dim = DIM.framed,
+  /** The marking picked to move or delete: framed in indigo. */
+  picked: number | null = null,
 ) {
   const { width: W, height: H } = ctx.canvas;
   ctx.clearRect(0, 0, W, H);
@@ -235,6 +315,15 @@ export function render(
   ctx.rect(sel.x, sel.y, sel.w, sel.h);
   ctx.clip();
   shapes.forEach((sh, i) => drawShape(ctx, sh, s, i === editing));
+  if (picked !== null && shapes[picked]) {
+    const f = shapeFrame(shapes[picked], s);
+    ctx.strokeStyle = "#0d08d2"; // Primary Indigo: the active state
+    ctx.lineWidth = 1.5 * s;
+    ctx.setLineDash([5 * s, 4 * s]);
+    ctx.beginPath();
+    ctx.roundRect(f.x, f.y, f.w, f.h, 6 * s);
+    ctx.stroke();
+  }
   ctx.restore();
 
   ctx.save();

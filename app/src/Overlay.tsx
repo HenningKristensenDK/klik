@@ -16,7 +16,7 @@ import {
   showOverlay,
   type Shot,
 } from "./bridge";
-import { CALLOUT, DIM, calloutLayout, exportRgba, normRect, render, type Pt, type Rect, type Shape, type Tool } from "./draw";
+import { CALLOUT, DIM, calloutLayout, hitShape, moveShape, renumber, shapeFrame, exportRgba, normRect, render, type Pt, type Rect, type Shape, type Tool } from "./draw";
 import { Icon } from "./icons";
 import { t } from "./i18n";
 import { VERSION } from "./version";
@@ -66,6 +66,12 @@ export function Overlay() {
     longH: 0,
     /** Wheel movement not yet turned into notches. */
     wheelAcc: 0,
+    /** The marking picked with a click: drag moves it, Del or its x deletes it. */
+    picked: null as number | null,
+    /** A picked marking being dragged. */
+    drag: null as { i: number; from: Pt; orig: Shape; moved: boolean } | null,
+    /** Earlier versions of `shapes`, for Undo. */
+    past: [] as Shape[][],
   });
   /** The area as it is now, while a long screenshot runs. */
   const live = useRef<ImageBitmap | null>(null);
@@ -89,7 +95,7 @@ export function Overlay() {
       const s = st.current;
       if (!c || !shot.current) return;
       const shapes = s.draft ? [...s.shapes, s.draft] : s.shapes;
-      render(c.getContext("2d")!, shot.current.bitmap, s.sel, shapes, k(), s.editing, s.mode === "long" ? live.current : null, s.mode === "select" ? DIM.picking : DIM.framed);
+      render(c.getContext("2d")!, shot.current.bitmap, s.sel, shapes, k(), s.editing, s.mode === "long" ? live.current : null, s.mode === "select" ? DIM.picking : DIM.framed, s.picked);
     });
   }, []);
 
@@ -119,6 +125,9 @@ export function Overlay() {
           status: "",
           editing: null,
           reopened: !!sel,
+          picked: null,
+          drag: null,
+          past: [],
           tall: false,
           longH: 0,
           wheelAcc: 0,
@@ -307,7 +316,7 @@ export function Overlay() {
 
   const backToSelect = () => {
     if (st.current.tall) return; // the long image is the capture now
-    Object.assign(st.current, { mode: "select", sel: null, shapes: [], draft: null, start: null });
+    Object.assign(st.current, { mode: "select", sel: null, shapes: [], draft: null, start: null, picked: null, drag: null, past: [] });
     paint();
     rerender();
   };
@@ -329,6 +338,16 @@ export function Overlay() {
         commitText();
         return;
       }
+      // A press on a marking picks it; dragging moves it.
+      const hit = hitShape(s.shapes, p, k());
+      if (hit >= 0) {
+        s.picked = hit;
+        s.drag = { i: hit, from: p, orig: s.shapes[hit], moved: false };
+        paint();
+        rerender();
+        return;
+      }
+      s.picked = null;
       const color = s.colors[s.tool];
       if (s.tool === "highlight" || s.tool === "pen") s.draft = { kind: s.tool, color, pts: [p] };
       else if (s.tool === "line") s.draft = { kind: "line", color, a: p, b: p };
@@ -347,6 +366,20 @@ export function Overlay() {
       s.sel = normRect(s.start, toImg(e));
       paint();
       rerender();
+    } else if (s.mode === "edit" && s.drag) {
+      const p = toImg(e);
+      const d = s.drag;
+      const dx = p.x - d.from.x;
+      const dy = p.y - d.from.y;
+      if (!d.moved && Math.hypot(dx, dy) < 3 * k()) return;
+      if (!d.moved) s.past.push(s.shapes);
+      d.moved = true;
+      s.shapes = s.shapes.map((x, i) => (i === d.i ? moveShape(d.orig, dx, dy) : x));
+      paint();
+    } else if (s.mode === "edit" && !s.draft) {
+      // Show that a marking under the pointer can be moved.
+      const over = hitShape(s.shapes, toImg(e), k()) >= 0;
+      canvasRef.current!.style.cursor = over ? "move" : "";
     } else if (s.mode === "edit" && s.draft) {
       const p = toImg(e);
       const d = s.draft;
@@ -369,7 +402,11 @@ export function Overlay() {
       s.start = null;
       s.mode = "edit";
       scheduleSave(0); // the area is on the clipboard as soon as it is framed
+    } else if (s.mode === "edit" && s.drag) {
+      if (s.drag.moved) scheduleSave();
+      s.drag = null;
     } else if (s.mode === "edit" && s.draft) {
+      s.past.push(s.shapes);
       s.shapes = [...s.shapes, s.draft];
       if (s.draft.kind === "callout") s.editing = s.shapes.length - 1; // type now, save on commit
       else scheduleSave();
@@ -384,14 +421,50 @@ export function Overlay() {
     rerender();
   };
   const setColor = (c: string) => {
-    st.current.colors = { ...st.current.colors, [st.current.tool]: c };
+    const s = st.current;
+    s.colors = { ...s.colors, [s.tool]: c };
+    // A picked marking takes the colour too.
+    if (s.picked !== null && s.shapes[s.picked]) {
+      s.past.push(s.shapes);
+      s.shapes = s.shapes.map((x, i) => (i === s.picked ? { ...x, color: c } : x));
+      paint();
+      scheduleSave();
+    }
     rerender();
   };
   const undo = () => {
-    st.current.shapes = st.current.shapes.slice(0, -1);
+    const s = st.current;
+    const prev = s.past.pop();
+    if (!prev) return;
+    s.shapes = prev;
+    s.picked = null;
     paint();
     rerender();
     scheduleSave();
+  };
+  /** Deletes the picked marking (Del, Backspace or its x). */
+  const deletePicked = () => {
+    const s = st.current;
+    if (s.picked === null) return;
+    s.past.push(s.shapes);
+    s.shapes = renumber(s.shapes.filter((_, i) => i !== s.picked));
+    s.picked = null;
+    paint();
+    rerender();
+    scheduleSave();
+  };
+  /** Double-click on a comment: type in it again. */
+  const onDouble = (e: React.MouseEvent) => {
+    const s = st.current;
+    if (s.mode !== "edit" || s.editing !== null) return;
+    const r = canvasRef.current!.getBoundingClientRect();
+    const kk = k();
+    const i = hitShape(s.shapes, { x: (e.clientX - r.left) * kk, y: (e.clientY - r.top) * kk }, kk);
+    if (i < 0 || s.shapes[i].kind !== "callout") return;
+    s.picked = null;
+    s.editing = i;
+    paint();
+    rerender();
   };
 
   useEffect(() => {
@@ -421,6 +494,10 @@ export function Overlay() {
       } else if (s.mode !== "edit") return;
       else if (key === "enter" || (e.ctrlKey && key === "c")) done();
       else if (e.ctrlKey && key === "z") undo();
+      else if ((key === "delete" || key === "backspace") && s.picked !== null) {
+        e.preventDefault();
+        deletePicked();
+      }
       else if (key === "s" && !e.ctrlKey && !e.altKey) toStudio();
       else if (!e.ctrlKey && !e.altKey) {
         const t = TOOLS.find((x) => x.key.toLowerCase() === key);
@@ -485,6 +562,7 @@ export function Overlay() {
         onPointerDown={onDown}
         onPointerMove={onMove}
         onPointerUp={onUp}
+        onDoubleClick={onDouble}
       />
 
       {s.mode === "select" && !s.start && (
@@ -548,6 +626,24 @@ export function Overlay() {
             />
           );
         })()}
+
+      {s.mode === "edit" &&
+        s.picked !== null &&
+        s.shapes[s.picked] &&
+        (() => {
+          const f = shapeFrame(s.shapes[s.picked], kk);
+          return (
+            <button
+              className="pick-x"
+              title={t.deleteMark}
+              style={{ left: (f.x + f.w) / kk - 12, top: f.y / kk - 12 }}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={deletePicked}
+            >
+              <Icon name="close" />
+            </button>
+          );
+        })()}
       </div>
 
       {s.mode === "edit" && bar && (
@@ -573,7 +669,7 @@ export function Overlay() {
             />
           ))}
           <span className="sep" />
-          <button className="tool" title={t.undo} disabled={!s.shapes.length} onClick={undo}>
+          <button className="tool" title={t.undo} disabled={!s.past.length} onClick={undo}>
             <Icon name="undo" />
           </button>
           <button className="tool" title={t.discard} onClick={abort}>

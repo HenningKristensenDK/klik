@@ -70,7 +70,8 @@ Priority: **Must** = MVP, **Should** = next release, **Could** = later.
 
 - 5 colours: red, yellow, green, blue, black. The colour belongs to the selected tool.
 - `Shift` while drawing with the pen or highlighter gives a straight stroke.
-- `Ctrl+Z` undoes the last marking.
+- `Ctrl+Z` undoes the last change (a new, moved, recoloured or deleted marking).
+- Edit a marking (Built 0.3.2, untested on Windows): press on a marking and drag to move it; the pointer shows a move cursor over it. A click picks it: a dashed indigo frame and a small round x at its corner. The x, `Del` or `Backspace` deletes it; a colour click recolours it. Numbered arrows count 1, 2, 3 again after one is deleted. Double-click a comment to type in it again. No new toolbar button. A press on a marking moves it instead of drawing on top of it.
 - **Accept when:** a screenshot with the steps "1, 2, 3" takes one drag to select plus three drags to mark.
 
 ### F4. Copied as soon as it is framed: Must, Built
