@@ -8,6 +8,8 @@
 //! which is saved to Pictures\Klik and put on the clipboard at once -> every
 //! marking updates both -> Esc closes.
 
+mod stitch;
+
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
