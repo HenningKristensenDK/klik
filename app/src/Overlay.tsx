@@ -16,9 +16,10 @@ import {
   showOverlay,
   type Shot,
 } from "./bridge";
-import { CALLOUT, calloutLayout, exportRgba, normRect, render, type Pt, type Rect, type Shape, type Tool } from "./draw";
+import { CALLOUT, DIM, calloutLayout, exportRgba, normRect, render, type Pt, type Rect, type Shape, type Tool } from "./draw";
 import { Icon } from "./icons";
 import { t } from "./i18n";
+import { VERSION } from "./version";
 
 /** `long`: the wheel is making a long screenshot of the selected area. */
 type Mode = "idle" | "select" | "edit" | "long";
@@ -88,7 +89,7 @@ export function Overlay() {
       const s = st.current;
       if (!c || !shot.current) return;
       const shapes = s.draft ? [...s.shapes, s.draft] : s.shapes;
-      render(c.getContext("2d")!, shot.current.bitmap, s.sel, shapes, k(), s.editing, s.mode === "long" ? live.current : null);
+      render(c.getContext("2d")!, shot.current.bitmap, s.sel, shapes, k(), s.editing, s.mode === "long" ? live.current : null, s.mode === "select" ? DIM.picking : DIM.framed);
     });
   }, []);
 
@@ -122,7 +123,7 @@ export function Overlay() {
           longH: 0,
           wheelAcc: 0,
         });
-        render(c.getContext("2d")!, next.bitmap, sel, [], k());
+        render(c.getContext("2d")!, next.bitmap, sel, [], k(), null, null, sel ? DIM.framed : DIM.picking);
         rerender();
         await showOverlay();
       }),
@@ -489,11 +490,14 @@ export function Overlay() {
       {s.mode === "select" && !s.start && (
         <div className="hint">
           <b>{t.hintDrag}</b> {t.hintDragRest} &nbsp;·&nbsp; <b>{t.hintClick}</b> {t.hintClickRest} &nbsp;·&nbsp; <b>{t.hintScroll}</b> {t.hintScrollRest} &nbsp;·&nbsp; <b>Esc</b> {t.hintEscRest}
-          {hotkey.current && (
-            <div className="hint-key">
-              {t.hintNext} <kbd>{hotkey.current}</kbd>
-            </div>
-          )}
+          <div className="hint-key">
+            {hotkey.current && (
+              <>
+                {t.hintNext} <kbd>{hotkey.current}</kbd> &nbsp;·&nbsp;{" "}
+              </>
+            )}
+            <span className="ver">Klik {VERSION}</span>
+          </div>
         </div>
       )}
 
