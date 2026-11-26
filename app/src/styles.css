@@ -120,5 +120,28 @@ html, body, #root { margin: 0; height: 100%; overflow: hidden; background: #000;
   padding: 10px 18px; border-radius: var(--radius-card); font-size: 14px; visibility: visible;
 }
 
+/* The wheel makes a long image: a watermark inside the frame until the first
+   wheel step, marking, tool or crop. A page element, so never in the image. */
+.wheel-hint {
+  position: absolute; display: flex; align-items: center; gap: 14px; pointer-events: none;
+  padding: 14px 20px; border-radius: var(--radius-card); color: #fff;
+  background: rgba(7, 4, 116, 0.55); /* RTPM Navy */
+  font-size: 14px; line-height: 1.35; animation: fade 0.3s ease-out;
+}
+.wheel-hint.small { padding: 8px 10px; }
+.wheel-hint .mouse { flex: none; }
+.wheel-hint .wheel { animation: wheel 1.4s ease-in-out infinite; }
+.wheel-text b { font-weight: 700; }
+.wheel-text span { display: block; font-size: 12px; opacity: 0.8; margin-top: 2px; }
+@keyframes wheel { 0% { transform: translateY(0); opacity: 1; } 70% { transform: translateY(9px); opacity: 0; } 100% { transform: translateY(0); opacity: 0; } }
+
+/* Crop handles on the frame. A wide invisible hit area, a small visible square. */
+.crop-h { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; touch-action: none; z-index: 2; }
+.crop-h::after {
+  content: ""; position: absolute; left: 6px; top: 6px; width: 10px; height: 10px; border-radius: 2px;
+  background: #fff; border: 2px solid var(--indigo); box-shadow: 0 1px 3px rgba(7, 4, 116, 0.35);
+}
+.crop-h:hover::after, .crop-h.on::after { background: var(--indigo); }
+
 @keyframes fade { from { opacity: 0; } }
 @keyframes pop { from { opacity: 0; transform: translateX(-50%) translateY(6px) scale(0.98); } }

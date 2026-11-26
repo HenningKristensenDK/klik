@@ -3,6 +3,7 @@
 Klik grows one feature at a time, each as a new version. Ideas and votes: [issues](https://github.com/HenningKristensenDK/klik/issues).
 
 ## Now (0.3)
+- 0.3.3: a watermark in the framed area shows that the mouse wheel makes a long image. Crop: drag the small handles on the frame, also on a long screenshot; `Ctrl+Z` undoes it. Studio is hidden for 1.0, so a click on the Klik icon takes a screenshot.
 - 0.3.2: move a marking by dragging it; click it, then `Del` or its small x deletes it; a colour click recolours it; double-click a comment to edit it. The screen around a framed area is lighter (RTPM Navy 55 %).
 - 0.3.1: the version number shows, small, in the editor's hint and next to "Klik Studio". Around a framed area the screen is RTPM Navy at 80 %, so the eye stays on the area; while you pick the area it is a light 30 %, so you see what to frame.
 - 0.3.0 Long screenshot: select an area, then turn the mouse wheel. Klik scrolls the window below and stitches one tall image, with a fixed header kept once. `Esc` saves and copies it; a click opens it in the editor, where the wheel scrolls the image so you can mark all of it.
@@ -23,6 +24,8 @@ Klik grows one feature at a time, each as a new version. Ideas and votes: [issue
 - 0.2.5: the RTPM app icon replaces the Klik icon. A click on the Klik icon on the taskbar opens Klik Studio; right-click it for "Take screenshot" or "Klik Studio". "New screenshot" in Studio takes one without the hotkey.
 
 ## Next
+- **Klik 1.0 in the Microsoft Store:** free, signed by Microsoft, updates by themselves.
+- **Studio 2:** rethought around one job, from your screenshots to a finished post or deck, with Claude writing the story.
 - **0.4.0 Video of the area:** one video button (key `R`), webcam bubble, voice, 16:9, 4:5 or 1:1, MP4 to `Videos\Klik` and the clipboard.
 - **Microsoft Store:** one-click install, signed, automatic updates.
 - **Studio canvas and crop:** combine screenshots on one free canvas, and crop a screenshot so app text stays readable on a phone.
