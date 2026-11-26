@@ -68,11 +68,12 @@ export function Gallery() {
     <div className="gallery">
       <header className="g-top">
         <span className="g-brand">
-          <svg viewBox="0 0 100 100" width="20" height="20" aria-hidden>
+          <svg viewBox="0 0 100 100" width="26" height="26" aria-hidden>
             <path d="M0 0H47.4V29.2H29.2V47.4H0Z" />
             <path d="M100 0V47.4H70.8V29.2H52.6V0Z" />
             <path d="M0 100V52.6H29.2V70.8H47.4V100Z" />
             <path d="M100 100H52.6V70.8H70.8V52.6H100Z" />
+            <circle cx="50" cy="50" r="11" />
           </svg>
           Klik <small>{VERSION}</small>
         </span>
