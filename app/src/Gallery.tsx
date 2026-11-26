@@ -61,8 +61,12 @@ export function Gallery() {
     }
   };
 
-  const when = (ms: number) =>
-    new Date(ms).toLocaleString(undefined, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  /** 2026.11.26 19:36: the date as in Klik's file names, 24-hour time. */
+  const when = (ms: number) => {
+    const d = new Date(ms);
+    const two = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}.${two(d.getMonth() + 1)}.${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}`;
+  };
 
   return (
     <div className="gallery">
