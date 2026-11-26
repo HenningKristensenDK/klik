@@ -20,6 +20,7 @@ import { CALLOUT, DIM, calloutLayout, hitShape, moveShape, renumber, shapeFrame,
 import { Icon } from "./icons";
 import { t } from "./i18n";
 import { VERSION } from "./version";
+import { STUDIO } from "./flags";
 
 /** `long`: the wheel is making a long screenshot of the selected area. */
 type Mode = "idle" | "select" | "edit" | "long";
@@ -33,6 +34,18 @@ const DEFAULT_COLORS: Record<Tool, string> = {
   arrow: "#0d08d2",
   callout: "#0d08d2",
 };
+/** One Undo step: the markings and the frame, so a crop can be undone too. */
+type Past = { shapes: Shape[]; sel: Rect | null };
+const remember = (s: { past: Past[]; shapes: Shape[]; sel: Rect | null }) => s.past.push({ shapes: s.shapes, sel: s.sel });
+
+/** Crop handles on the frame: corners and middles of each edge. */
+const HANDLES = ["nw", "n", "ne", "e", "se", "s", "sw", "w"] as const;
+type Handle = (typeof HANDLES)[number];
+const CURSOR: Record<Handle, string> = { nw: "nwse-resize", se: "nwse-resize", ne: "nesw-resize", sw: "nesw-resize", n: "ns-resize", s: "ns-resize", e: "ew-resize", w: "ew-resize" };
+/** Smallest frame a crop leaves, image pixels. */
+const MIN_CROP = 16;
+const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
+
 const TOOLS: { id: Tool; key: string; label: string }[] = [
   { id: "highlight", key: "M", label: t.highlight },
   { id: "arrow", key: "A", label: t.arrow },
@@ -70,8 +83,12 @@ export function Overlay() {
     picked: null as number | null,
     /** A picked marking being dragged. */
     drag: null as { i: number; from: Pt; orig: Shape; moved: boolean } | null,
-    /** Earlier versions of `shapes`, for Undo. */
-    past: [] as Shape[][],
+    /** Earlier markings and frames, for Undo. */
+    past: [] as Past[],
+    /** The scroll watermark is gone: a tool, a crop or a marking came first. */
+    hintGone: false,
+    /** A crop handle being dragged. */
+    crop: null as { h: Handle; from: Pt; orig: Rect; moved: boolean } | null,
   });
   /** The area as it is now, while a long screenshot runs. */
   const live = useRef<ImageBitmap | null>(null);
@@ -131,6 +148,8 @@ export function Overlay() {
           tall: false,
           longH: 0,
           wheelAcc: 0,
+          hintGone: false,
+          crop: null,
         });
         render(c.getContext("2d")!, next.bitmap, sel, [], k(), null, null, sel ? DIM.framed : DIM.picking);
         rerender();
@@ -242,7 +261,7 @@ export function Overlay() {
       const c = canvasRef.current!;
       c.width = tall.w;
       c.height = tall.h;
-      Object.assign(s, { mode: "edit", tall: true, sel: { x: 0, y: 0, w: tall.w, h: tall.h }, shapes: [], draft: null, busy: false });
+      Object.assign(s, { mode: "edit", tall: true, sel: { x: 0, y: 0, w: tall.w, h: tall.h }, shapes: [], draft: null, busy: false, past: [] });
       rerender();
       paint();
       scheduleSave(0);
@@ -372,7 +391,7 @@ export function Overlay() {
       const dx = p.x - d.from.x;
       const dy = p.y - d.from.y;
       if (!d.moved && Math.hypot(dx, dy) < 3 * k()) return;
-      if (!d.moved) s.past.push(s.shapes);
+      if (!d.moved) remember(s);
       d.moved = true;
       s.shapes = s.shapes.map((x, i) => (i === d.i ? moveShape(d.orig, dx, dy) : x));
       paint();
@@ -406,7 +425,7 @@ export function Overlay() {
       if (s.drag.moved) scheduleSave();
       s.drag = null;
     } else if (s.mode === "edit" && s.draft) {
-      s.past.push(s.shapes);
+      remember(s);
       s.shapes = [...s.shapes, s.draft];
       if (s.draft.kind === "callout") s.editing = s.shapes.length - 1; // type now, save on commit
       else scheduleSave();
@@ -418,6 +437,7 @@ export function Overlay() {
 
   const setTool = (t: Tool) => {
     st.current.tool = t;
+    st.current.hintGone = true;
     rerender();
   };
   const setColor = (c: string) => {
@@ -425,7 +445,7 @@ export function Overlay() {
     s.colors = { ...s.colors, [s.tool]: c };
     // A picked marking takes the colour too.
     if (s.picked !== null && s.shapes[s.picked]) {
-      s.past.push(s.shapes);
+      remember(s);
       s.shapes = s.shapes.map((x, i) => (i === s.picked ? { ...x, color: c } : x));
       paint();
       scheduleSave();
@@ -436,7 +456,8 @@ export function Overlay() {
     const s = st.current;
     const prev = s.past.pop();
     if (!prev) return;
-    s.shapes = prev;
+    s.shapes = prev.shapes;
+    if (prev.sel) s.sel = prev.sel;
     s.picked = null;
     paint();
     rerender();
@@ -446,13 +467,56 @@ export function Overlay() {
   const deletePicked = () => {
     const s = st.current;
     if (s.picked === null) return;
-    s.past.push(s.shapes);
+    remember(s);
     s.shapes = renumber(s.shapes.filter((_, i) => i !== s.picked));
     s.picked = null;
     paint();
     rerender();
     scheduleSave();
   };
+  /** A crop handle: drag it to move that edge or corner of the frame. */
+  const onCropDown = (h: Handle) => (e: React.PointerEvent) => {
+    e.stopPropagation();
+    const s = st.current;
+    if (e.button !== 0 || !s.sel || s.editing !== null) return;
+    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+    s.crop = { h, from: toImg(e), orig: s.sel, moved: false };
+    s.hintGone = true;
+    s.picked = null;
+    rerender();
+  };
+  const onCropMove = (e: React.PointerEvent) => {
+    const s = st.current;
+    const c = s.crop;
+    if (!c || !shot.current) return;
+    e.stopPropagation();
+    const p = toImg(e);
+    const dx = p.x - c.from.x;
+    const dy = p.y - c.from.y;
+    if (!c.moved && Math.hypot(dx, dy) < 2 * k()) return;
+    let x1 = c.orig.x;
+    let y1 = c.orig.y;
+    let x2 = c.orig.x + c.orig.w;
+    let y2 = c.orig.y + c.orig.h;
+    if (c.h.includes("w")) x1 = clamp(x1 + dx, 0, x2 - MIN_CROP);
+    if (c.h.includes("e")) x2 = clamp(x2 + dx, x1 + MIN_CROP, shot.current.w);
+    if (c.h.includes("n")) y1 = clamp(y1 + dy, 0, y2 - MIN_CROP);
+    if (c.h.includes("s")) y2 = clamp(y2 + dy, y1 + MIN_CROP, shot.current.h);
+    if (!c.moved) remember(s);
+    c.moved = true;
+    s.sel = { x: Math.round(x1), y: Math.round(y1), w: Math.round(x2 - x1), h: Math.round(y2 - y1) };
+    paint();
+    rerender();
+  };
+  const onCropUp = (e: React.PointerEvent) => {
+    const s = st.current;
+    if (!s.crop) return;
+    e.stopPropagation();
+    if (s.crop.moved) scheduleSave();
+    s.crop = null;
+    rerender();
+  };
+
   /** Double-click on a comment: type in it again. */
   const onDouble = (e: React.MouseEvent) => {
     const s = st.current;
@@ -477,7 +541,7 @@ export function Overlay() {
         if (key === "escape" || key === "enter") {
           e.preventDefault();
           finishLong("save");
-        } else if (key === "s" && !e.ctrlKey && !e.altKey) finishLong("studio");
+        } else if (STUDIO && key === "s" && !e.ctrlKey && !e.altKey) finishLong("studio");
         else if (!e.ctrlKey && !e.altKey) {
           const t = TOOLS.find((x) => x.key.toLowerCase() === key);
           if (t) {
@@ -498,7 +562,7 @@ export function Overlay() {
         e.preventDefault();
         deletePicked();
       }
-      else if (key === "s" && !e.ctrlKey && !e.altKey) toStudio();
+      else if (STUDIO && key === "s" && !e.ctrlKey && !e.altKey) toStudio();
       else if (!e.ctrlKey && !e.altKey) {
         const t = TOOLS.find((x) => x.key.toLowerCase() === key);
         if (t) setTool(t.id);
@@ -590,6 +654,70 @@ export function Overlay() {
           {Math.round(s.sel!.w)} × {s.mode === "long" ? s.longH : Math.round(s.sel!.h)}
         </div>
       )}
+
+      {s.mode === "edit" &&
+        selCss &&
+        !s.tall &&
+        !s.reopened &&
+        !s.hintGone &&
+        !s.shapes.length &&
+        !s.draft &&
+        s.editing === null &&
+        (() => {
+          // The wheel makes a long image: say so inside the frame, where the eye is.
+          const small = selCss.w < 280 || selCss.h < 150;
+          const above = selCss.y > 70;
+          const style: React.CSSProperties = !small
+            ? { left: selCss.x + selCss.w / 2, top: selCss.y + selCss.h / 2, transform: "translate(-50%, -50%)" }
+            : above
+              ? { left: selCss.x + selCss.w / 2, top: selCss.y - 40, transform: "translate(-50%, -100%)" }
+              : { left: selCss.x + selCss.w / 2, top: selCss.y + selCss.h / 2, transform: "translate(-50%, -50%)" };
+          return (
+            <div className={`wheel-hint${small ? " small" : ""}`} style={style} aria-hidden>
+              <svg className="mouse" viewBox="0 0 28 40" width="28" height="40">
+                <rect x="1.5" y="1.5" width="25" height="37" rx="12.5" fill="none" stroke="currentColor" strokeWidth="2.5" />
+                <rect className="wheel" x="12" y="8" width="4" height="8" rx="2" fill="currentColor" />
+              </svg>
+              {!small && (
+                <div className="wheel-text">
+                  <b>{t.wheelScroll}</b> {t.wheelScrollRest}
+                  <span>{t.wheelEsc}</span>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+      {s.mode === "edit" &&
+        selCss &&
+        s.editing === null &&
+        !s.draft &&
+        (() => {
+          const r = canvasRef.current?.getBoundingClientRect();
+          const W = r?.width ?? window.innerWidth;
+          const H = r?.height ?? window.innerHeight;
+          const pos: Record<Handle, [number, number]> = {
+            nw: [selCss.x, selCss.y],
+            n: [selCss.x + selCss.w / 2, selCss.y],
+            ne: [selCss.x + selCss.w, selCss.y],
+            e: [selCss.x + selCss.w, selCss.y + selCss.h / 2],
+            se: [selCss.x + selCss.w, selCss.y + selCss.h],
+            s: [selCss.x + selCss.w / 2, selCss.y + selCss.h],
+            sw: [selCss.x, selCss.y + selCss.h],
+            w: [selCss.x, selCss.y + selCss.h / 2],
+          };
+          return HANDLES.map((h) => (
+            <div
+              key={h}
+              className={`crop-h${s.crop?.h === h ? " on" : ""}`}
+              title={t.cropTitle}
+              style={{ left: clamp(pos[h][0], 7, W - 7), top: clamp(pos[h][1], 7, H - 7), cursor: CURSOR[h] }}
+              onPointerDown={onCropDown(h)}
+              onPointerMove={onCropMove}
+              onPointerUp={onCropUp}
+            />
+          ));
+        })()}
 
       {s.mode === "edit" &&
         s.editing !== null &&
@@ -684,9 +812,11 @@ export function Overlay() {
             {s.status === "saving" && t.copying}
             {s.status === "error" && t.copyFailed}
           </span>
-          <button className="to-studio" title={t.toStudioTitle} onClick={toStudio}>
-            <Icon name="studio" /> {t.toStudio}
-          </button>
+          {STUDIO && (
+            <button className="to-studio" title={t.toStudioTitle} onClick={toStudio}>
+              <Icon name="studio" /> {t.toStudio}
+            </button>
+          )}
           <button className="done" title={t.doneTitle} onClick={done}>
             {t.done} <kbd>Esc</kbd>
           </button>

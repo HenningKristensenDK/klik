@@ -24,6 +24,12 @@ use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut, ShortcutState};
 
 const OVERLAY: &str = "overlay";
 const STUDIO: &str = "studio";
+/// Klik 1.0 ships the screenshot tool alone; Studio stays in the code, hidden,
+/// until it is rethought (brief 2026.11.26). Keep in step with `app/src/flags.ts`.
+const SHOW_STUDIO: bool = false;
+/// Where "Send feedback" in the tray menu goes: three short questions. Swap for
+/// RTPM's Microsoft Form when it exists (launch plan 2026.11.26).
+const FEEDBACK_URL: &str = "https://github.com/HenningKristensenDK/klik/issues/new?template=feedback.yml";
 
 /// The last captured monitor image: (width, height, RGBA bytes).
 #[derive(Default)]
@@ -646,6 +652,14 @@ fn inbox_dir(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(dir)
 }
 
+/// Opens a web page in the default browser.
+fn open_url(url: &str) {
+    #[cfg(windows)]
+    let _ = std::process::Command::new("explorer").arg(url).spawn();
+    #[cfg(not(windows))]
+    let _ = std::process::Command::new("xdg-open").arg(url).spawn();
+}
+
 fn open_dir(dir: Result<PathBuf, String>) {
     if let Ok(dir) = dir {
         #[cfg(windows)]
@@ -834,7 +848,8 @@ fn studio_capture(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
 }
 
 /// What a start of `klik.exe` asks for: `--shot` a screenshot, `--background`
-/// nothing (start at login), anything else Klik Studio.
+/// nothing (start at login), anything else Klik Studio, or a screenshot while
+/// Studio is hidden (one click on the Klik icon = one screenshot).
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Launch {
     Shot,
@@ -847,8 +862,10 @@ fn launch_kind<S: AsRef<str>>(args: &[S]) -> Launch {
         Launch::Shot
     } else if args.iter().any(|a| a.as_ref() == "--background") {
         Launch::Quiet
-    } else {
+    } else if SHOW_STUDIO {
         Launch::Studio
+    } else {
+        Launch::Shot
     }
 }
 
@@ -880,10 +897,10 @@ fn set_jump_list(da: bool) -> windows::core::Result<()> {
         let mut slots = 0u32;
         let _removed: IObjectArray = list.BeginList(&mut slots)?;
         let tasks: IObjectCollection = CoCreateInstance(&EnumerableObjectCollection, None, CLSCTX_INPROC_SERVER)?;
-        let items = [
-            ("--shot", if da { "Tag screenshot" } else { "Take screenshot" }),
-            ("--studio", "Klik Studio"),
-        ];
+        let mut items = vec![("--shot", if da { "Tag screenshot" } else { "Take screenshot" })];
+        if SHOW_STUDIO {
+            items.push(("--studio", "Klik Studio"));
+        }
         for (arg, title) in items {
             let link: IShellLinkW = CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER)?;
             link.SetPath(&exe)?;
@@ -932,8 +949,9 @@ mod studio_tests {
 
     #[test]
     fn launch_args_pick_shot_studio_or_quiet() {
-        assert_eq!(launch_kind(&["klik.exe"]), Launch::Studio);
-        assert_eq!(launch_kind(&["klik.exe", "--studio"]), Launch::Studio);
+        let plain = if SHOW_STUDIO { Launch::Studio } else { Launch::Shot };
+        assert_eq!(launch_kind(&["klik.exe"]), plain);
+        assert_eq!(launch_kind(&["klik.exe", "--studio"]), plain);
         assert_eq!(launch_kind(&["klik.exe", "--shot"]), Launch::Shot);
         assert_eq!(launch_kind(&["klik.exe", "--background"]), Launch::Quiet);
     }
@@ -1014,13 +1032,26 @@ fn setup_tray(app: &AppHandle, hotkey: Option<&str>) -> tauri::Result<()> {
     let exports = MenuItem::with_id(app, "exports", tr("Open Studio exports", "Åbn Studio-eksporter"), true, None::<&str>)?;
     let sep = PredefinedMenuItem::separator(app)?;
     let sep2 = PredefinedMenuItem::separator(app)?;
+    let feedback = MenuItem::with_id(app, "feedback", tr("Send feedback", "Send feedback"), true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", tr("Quit Klik", "Afslut Klik"), true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&shot, &key, &sep2, &studio, &exports, &folder, &inbox, &sep, &quit])?;
-    // Left-click opens Studio: screenshots start from the hotkey, so the icon
-    // is the way into Studio. Right-click shows the menu, screenshot included.
-    let tooltip = match hotkey {
-        Some(k) => format!("Klik  -  {}  ·  {k}: {}", tr("click for Studio", "klik for Studio"), tr("screenshot", "screenshot")),
-        None => format!("Klik  -  {}", tr("click for Studio, right-click for a screenshot", "klik for Studio, højreklik for screenshot")),
+    let mut items: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> = vec![&shot, &key, &sep2];
+    if SHOW_STUDIO {
+        items.push(&studio);
+        items.push(&exports);
+    }
+    items.extend([&folder as &dyn tauri::menu::IsMenuItem<tauri::Wry>, &inbox, &feedback, &sep, &quit]);
+    let menu = Menu::with_items(app, &items)?;
+    // Left-click: a screenshot (or Studio, when it is shown). Right-click: the menu.
+    let tooltip = if !SHOW_STUDIO {
+        match hotkey {
+            Some(k) => format!("Klik  -  {}  ({k})", tr("click for a screenshot", "klik for screenshot")),
+            None => format!("Klik  -  {}", tr("click for a screenshot", "klik for screenshot")),
+        }
+    } else {
+        match hotkey {
+            Some(k) => format!("Klik  -  {}  ·  {k}: {}", tr("click for Studio", "klik for Studio"), tr("screenshot", "screenshot")),
+            None => format!("Klik  -  {}", tr("click for Studio, right-click for a screenshot", "klik for Studio, højreklik for screenshot")),
+        }
     };
 
     TrayIconBuilder::with_id("klik")
@@ -1034,6 +1065,7 @@ fn setup_tray(app: &AppHandle, hotkey: Option<&str>) -> tauri::Result<()> {
             "inbox" => open_dir(inbox_dir(app)),
             "studio" => open_studio(app),
             "exports" => open_dir(exports_dir(app)),
+            "feedback" => open_url(FEEDBACK_URL),
             "quit" => app.exit(0),
             _ => {}
         })
@@ -1044,7 +1076,11 @@ fn setup_tray(app: &AppHandle, hotkey: Option<&str>) -> tauri::Result<()> {
                 ..
             } = e
             {
-                open_studio(tray.app_handle());
+                if SHOW_STUDIO {
+                    open_studio(tray.app_handle());
+                } else {
+                    capture_async(tray.app_handle());
+                }
             }
         })
         .build(app)?;

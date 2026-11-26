@@ -1,0 +1,17 @@
+name: Feedback
+description: Three short questions. Two minutes.
+title: "Feedback: "
+labels: [feedback]
+body:
+  - type: textarea
+    attributes:
+      label: What did you use Klik for?
+      placeholder: For example a marked-up drawing for a contractor, a bug for IT, a long page for a report.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Where did it still cost you a click?
+  - type: textarea
+    attributes:
+      label: What is missing?

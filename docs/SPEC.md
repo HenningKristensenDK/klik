@@ -74,6 +74,8 @@ Priority: **Must** = MVP, **Should** = next release, **Could** = later.
 - Edit a marking (Built 0.3.2, untested on Windows): press on a marking and drag to move it; the pointer shows a move cursor over it. A click picks it: a dashed indigo frame and a small round x at its corner. The x, `Del` or `Backspace` deletes it; a colour click recolours it. Numbered arrows count 1, 2, 3 again after one is deleted. Double-click a comment to type in it again. No new toolbar button. A press on a marking moves it instead of drawing on top of it.
 - **Accept when:** a screenshot with the steps "1, 2, 3" takes one drag to select plus three drags to mark.
 
+- Crop (Built 0.3.3, untested on Windows): 8 small handles on the frame, corners and middles, always shown in the editor, no crop button. Drag one to move that edge or corner; the frame can also grow again, up to the edge of the screenshot. The new frame is copied and saved as soon as the handle is released. `Ctrl+Z` undoes a crop like a marking. Works the same on a long screenshot. Markings outside the new frame are cut off by it, not deleted, so Undo brings them back whole. The smallest frame is 16 x 16 px. Cost: 1 drag per edge, instead of a new screenshot.
+
 ### F4. Copied as soon as it is framed: Must, Built
 
 - The moment the area is selected (the second click or the end of the drag), the image is on the clipboard and saved as PNG in `Pictures\Klik\`. No button, no Esc needed.
@@ -85,7 +87,7 @@ Priority: **Must** = MVP, **Should** = next release, **Could** = later.
 
 ### F5. Long screenshot (scrolling capture): Must, Built 0.3.0, untested on Windows
 
-- The main path is the mouse wheel by hand: hotkey, drag an area, then turn the wheel down. No button; the hint line says "Scroll = long image" ("Scroll = langt billede").
+- The main path is the mouse wheel by hand: hotkey, drag an area, then turn the wheel down. No button. Since 0.3.3 a watermark sits in the middle of the framed area: a mouse with a moving wheel, "Scroll for a long image" and "Esc saves it as it is" (Danish: "Rul for et langt billede", "Esc gemmer det, som det er"). It is a page element over the image, so it is never saved, and it goes at the first wheel step, marking, tool key or crop. A small area shows only the mouse, above the area.
 - Each wheel step goes to the window below the editor (a 3 x 3 pixel hole under the pointer for a moment, then `SendInput`). Klik waits until the page stops moving, grabs the area with the editor left out of the capture (`WDA_EXCLUDEFROMCAPTURE`, Windows 10 2004 or later) and stitches by finding how far the rows moved. Rows that stay put at the top and bottom (a fixed header or footer) are kept once. Down only. While it runs, the area shows the page as it is now and the size label shows the height so far.
 - The capture ends at the first click, tool key or `Esc`. `Esc` (or `Enter`) saves the tall image to the clipboard and `Pictures\Klik` as a normal capture and closes. A click or a tool key opens the tall image in the editor at the scale it was taken at; the wheel scrolls the image so all of it can be marked, and every marking saves as today. `S` sends it to Studio.
 - The wheel starts a long screenshot only before the first marking, and not on a screenshot reopened from Studio. Height is capped at 30,000 px (the editor canvas limit).
@@ -137,6 +139,10 @@ Priority: **Must** = MVP, **Should** = next release, **Could** = later.
 - Not built: a window with the two choices on mouse-over. A pinned icon with no open window gives Klik no hover event, and Windows' own preview shows only for open windows, after its own delay. A window that opens on hover would also pop up by accident.
 - Starts with Windows (Planned).
 - Only one copy runs at a time. Starting it again triggers a capture (Built).
+
+### F11b. Send feedback: Should, Built 0.3.3
+
+"Send feedback" in the tray menu opens a short form with three questions: what did you use Klik for, where did it still cost a click, what is missing. Today it is a GitHub issue form; it moves to RTPM's Microsoft Form (no GitHub account needed) when that exists. Nothing is sent from Klik itself.
 
 ### F12. Distribution: Open
 
@@ -207,7 +213,9 @@ Klik turns one rough demo recording (F6, F7, F8) into finished LinkedIn content,
 - **Privacy:** as F9. AI and voice services run only when the user presses the button for that recording. Recordings of client systems go to Claude only with the client's permission. Everything else stays in `Videos\Klik\`.
 - **Accept when:** a 2-minute rough recording becomes a captioned 4:5 MP4 with hook and end card after one press and light edits only.
 
-### F16. Klik Studio: carousels and slides from screenshots: Should, Built
+### F16. Klik Studio: carousels and slides from screenshots: Should, Built, hidden in 1.0
+
+Hidden from 0.3.3 (Henning 2026.11.26: release the screenshot tool first, rethink Studio). The code stays; `STUDIO` in `app/src/flags.ts` and `SHOW_STUDIO` in `lib.rs` bring it back. While hidden: no Studio button or `S` key in the editor, no Studio items in the tray menu or the jump list, and a click on the Klik icon (taskbar, tray, Start menu) takes a screenshot.
 
 A second window of Klik, ported from the separate Klik Content app (old repo, PR #4 and #5) so all of Klik is one app and one installer. Requirement numbers S1 to S7 carry over Klik Content's C1 to C8.
 
