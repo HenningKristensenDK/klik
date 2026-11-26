@@ -27,6 +27,9 @@ const STUDIO: &str = "studio";
 /// Klik 1.0 ships the screenshot tool alone; Studio stays in the code, hidden,
 /// until it is rethought (brief 2026.11.26). Keep in step with `app/src/flags.ts`.
 const SHOW_STUDIO: bool = false;
+/// Where "Send feedback" in the tray menu goes: three short questions. Swap for
+/// RTPM's Microsoft Form when it exists (launch plan 2026.11.26).
+const FEEDBACK_URL: &str = "https://github.com/HenningKristensenDK/klik/issues/new?template=feedback.yml";
 
 /// The last captured monitor image: (width, height, RGBA bytes).
 #[derive(Default)]
@@ -649,6 +652,14 @@ fn inbox_dir(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(dir)
 }
 
+/// Opens a web page in the default browser.
+fn open_url(url: &str) {
+    #[cfg(windows)]
+    let _ = std::process::Command::new("explorer").arg(url).spawn();
+    #[cfg(not(windows))]
+    let _ = std::process::Command::new("xdg-open").arg(url).spawn();
+}
+
 fn open_dir(dir: Result<PathBuf, String>) {
     if let Ok(dir) = dir {
         #[cfg(windows)]
@@ -1021,13 +1032,14 @@ fn setup_tray(app: &AppHandle, hotkey: Option<&str>) -> tauri::Result<()> {
     let exports = MenuItem::with_id(app, "exports", tr("Open Studio exports", "Åbn Studio-eksporter"), true, None::<&str>)?;
     let sep = PredefinedMenuItem::separator(app)?;
     let sep2 = PredefinedMenuItem::separator(app)?;
+    let feedback = MenuItem::with_id(app, "feedback", tr("Send feedback", "Send feedback"), true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", tr("Quit Klik", "Afslut Klik"), true, None::<&str>)?;
     let mut items: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> = vec![&shot, &key, &sep2];
     if SHOW_STUDIO {
         items.push(&studio);
         items.push(&exports);
     }
-    items.extend([&folder as &dyn tauri::menu::IsMenuItem<tauri::Wry>, &inbox, &sep, &quit]);
+    items.extend([&folder as &dyn tauri::menu::IsMenuItem<tauri::Wry>, &inbox, &feedback, &sep, &quit]);
     let menu = Menu::with_items(app, &items)?;
     // Left-click: a screenshot (or Studio, when it is shown). Right-click: the menu.
     let tooltip = if !SHOW_STUDIO {
@@ -1053,6 +1065,7 @@ fn setup_tray(app: &AppHandle, hotkey: Option<&str>) -> tauri::Result<()> {
             "inbox" => open_dir(inbox_dir(app)),
             "studio" => open_studio(app),
             "exports" => open_dir(exports_dir(app)),
+            "feedback" => open_url(FEEDBACK_URL),
             "quit" => app.exit(0),
             _ => {}
         })

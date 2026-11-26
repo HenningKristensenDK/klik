@@ -140,6 +140,10 @@ Priority: **Must** = MVP, **Should** = next release, **Could** = later.
 - Starts with Windows (Planned).
 - Only one copy runs at a time. Starting it again triggers a capture (Built).
 
+### F11b. Send feedback: Should, Built 0.3.3
+
+"Send feedback" in the tray menu opens a short form with three questions: what did you use Klik for, where did it still cost a click, what is missing. Today it is a GitHub issue form; it moves to RTPM's Microsoft Form (no GitHub account needed) when that exists. Nothing is sent from Klik itself.
+
 ### F12. Distribution: Open
 
 | Channel | Status |
