@@ -87,6 +87,8 @@ export function Overlay() {
     past: [] as Past[],
     /** The scroll watermark is gone: a tool, a crop or a marking came first. */
     hintGone: false,
+    /** A reopened screenshot: crops stay inside the saved image. */
+    bounds: null as Rect | null,
     /** A crop handle being dragged. */
     crop: null as { h: Handle; from: Pt; orig: Rect; moved: boolean } | null,
   });
@@ -150,6 +152,7 @@ export function Overlay() {
           wheelAcc: 0,
           hintGone: false,
           crop: null,
+          bounds: sel,
         });
         render(c.getContext("2d")!, next.bitmap, sel, [], k(), null, null, sel ? DIM.framed : DIM.picking);
         rerender();
@@ -498,10 +501,12 @@ export function Overlay() {
     let y1 = c.orig.y;
     let x2 = c.orig.x + c.orig.w;
     let y2 = c.orig.y + c.orig.h;
-    if (c.h.includes("w")) x1 = clamp(x1 + dx, 0, x2 - MIN_CROP);
-    if (c.h.includes("e")) x2 = clamp(x2 + dx, x1 + MIN_CROP, shot.current.w);
-    if (c.h.includes("n")) y1 = clamp(y1 + dy, 0, y2 - MIN_CROP);
-    if (c.h.includes("s")) y2 = clamp(y2 + dy, y1 + MIN_CROP, shot.current.h);
+    // A reopened screenshot sits on a filler background: never crop out into it.
+    const B = s.reopened && s.bounds ? s.bounds : { x: 0, y: 0, w: shot.current.w, h: shot.current.h };
+    if (c.h.includes("w")) x1 = clamp(x1 + dx, B.x, x2 - MIN_CROP);
+    if (c.h.includes("e")) x2 = clamp(x2 + dx, x1 + MIN_CROP, B.x + B.w);
+    if (c.h.includes("n")) y1 = clamp(y1 + dy, B.y, y2 - MIN_CROP);
+    if (c.h.includes("s")) y2 = clamp(y2 + dy, y1 + MIN_CROP, B.y + B.h);
     if (!c.moved) remember(s);
     c.moved = true;
     s.sel = { x: Math.round(x1), y: Math.round(y1), w: Math.round(x2 - x1), h: Math.round(y2 - y1) };
@@ -776,6 +781,16 @@ export function Overlay() {
 
       {s.mode === "edit" && bar && (
         <div className="bar" style={bar} onPointerDown={(e) => e.stopPropagation()}>
+          <span className="rtpm" title={t.byRtpm} aria-label={t.byRtpm}>
+            <svg viewBox="0 0 100 100" width="26" height="26" aria-hidden>
+              <path d="M0 0H47.4V29.2H29.2V47.4H0Z" />
+              <path d="M100 0V47.4H70.8V29.2H52.6V0Z" />
+              <path d="M0 100V52.6H29.2V70.8H47.4V100Z" />
+              <path d="M100 100H52.6V70.8H70.8V52.6H100Z" />
+              <circle cx="50" cy="50" r="11" />
+            </svg>
+          </span>
+          <span className="sep" />
           {TOOLS.map((t) => (
             <button
               key={t.id}

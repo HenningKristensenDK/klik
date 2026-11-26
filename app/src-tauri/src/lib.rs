@@ -862,7 +862,7 @@ fn launch_kind<S: AsRef<str>>(args: &[S]) -> Launch {
         Launch::Shot
     } else if args.iter().any(|a| a.as_ref() == "--background") {
         Launch::Quiet
-    } else if SHOW_STUDIO {
+    } else if SHOW_STUDIO || args.iter().any(|a| a.as_ref() == "--studio") {
         Launch::Studio
     } else {
         Launch::Shot
@@ -870,7 +870,7 @@ fn launch_kind<S: AsRef<str>>(args: &[S]) -> Launch {
 }
 
 /// Right-click on the Klik icon in the taskbar: "Take screenshot" and
-/// "Klik Studio", so neither needs the hotkey. Works while Klik is closed too.
+/// "Klik Studio" while Studio is shown; only "Gallery" while it is hidden.
 #[cfg(windows)]
 fn set_jump_list(da: bool) -> windows::core::Result<()> {
     use windows::core::{Interface, HSTRING};
@@ -897,9 +897,14 @@ fn set_jump_list(da: bool) -> windows::core::Result<()> {
         let mut slots = 0u32;
         let _removed: IObjectArray = list.BeginList(&mut slots)?;
         let tasks: IObjectCollection = CoCreateInstance(&EnumerableObjectCollection, None, CLSCTX_INPROC_SERVER)?;
-        let mut items = vec![("--shot", if da { "Tag screenshot" } else { "Take screenshot" })];
+        // While Studio is hidden the "Klik" entry itself takes a screenshot, so the
+        // only task is the gallery of earlier screenshots.
+        let mut items = Vec::new();
         if SHOW_STUDIO {
+            items.push(("--shot", if da { "Tag screenshot" } else { "Take screenshot" }));
             items.push(("--studio", "Klik Studio"));
+        } else {
+            items.push(("--studio", if da { "Galleri" } else { "Gallery" }));
         }
         for (arg, title) in items {
             let link: IShellLinkW = CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER)?;
@@ -951,7 +956,7 @@ mod studio_tests {
     fn launch_args_pick_shot_studio_or_quiet() {
         let plain = if SHOW_STUDIO { Launch::Studio } else { Launch::Shot };
         assert_eq!(launch_kind(&["klik.exe"]), plain);
-        assert_eq!(launch_kind(&["klik.exe", "--studio"]), plain);
+        assert_eq!(launch_kind(&["klik.exe", "--studio"]), Launch::Studio);
         assert_eq!(launch_kind(&["klik.exe", "--shot"]), Launch::Shot);
         assert_eq!(launch_kind(&["klik.exe", "--background"]), Launch::Quiet);
     }
@@ -1032,12 +1037,15 @@ fn setup_tray(app: &AppHandle, hotkey: Option<&str>) -> tauri::Result<()> {
     let exports = MenuItem::with_id(app, "exports", tr("Open Studio exports", "Åbn Studio-eksporter"), true, None::<&str>)?;
     let sep = PredefinedMenuItem::separator(app)?;
     let sep2 = PredefinedMenuItem::separator(app)?;
+    let gallery = MenuItem::with_id(app, "studio", tr("Gallery: your screenshots", "Galleri: dine screenshots"), true, None::<&str>)?;
     let feedback = MenuItem::with_id(app, "feedback", tr("Send feedback", "Send feedback"), true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", tr("Quit Klik", "Afslut Klik"), true, None::<&str>)?;
     let mut items: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> = vec![&shot, &key, &sep2];
     if SHOW_STUDIO {
         items.push(&studio);
         items.push(&exports);
+    } else {
+        items.push(&gallery);
     }
     items.extend([&folder as &dyn tauri::menu::IsMenuItem<tauri::Wry>, &inbox, &feedback, &sep, &quit]);
     let menu = Menu::with_items(app, &items)?;

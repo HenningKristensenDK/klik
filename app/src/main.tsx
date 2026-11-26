@@ -2,6 +2,8 @@ import { createRoot } from "react-dom/client";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Overlay } from "./Overlay";
 import { Studio } from "./studio/Studio";
+import { Gallery } from "./Gallery";
+import { STUDIO } from "./flags";
 import { inTauri } from "./bridge";
 import "@fontsource/inter/400.css";
 import "@fontsource/inter/500.css";
@@ -29,4 +31,4 @@ const isStudio = new URLSearchParams(location.search).has("studio") || windowLab
 
 if (isStudio) document.documentElement.classList.add("studio-page");
 
-createRoot(document.getElementById("root")!).render(isStudio ? <Studio /> : <Overlay />);
+createRoot(document.getElementById("root")!).render(isStudio ? STUDIO ? <Studio /> : <Gallery /> : <Overlay />);

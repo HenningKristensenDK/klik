@@ -3,6 +3,7 @@
 Klik grows one feature at a time, each as a new version. Ideas and votes: [issues](https://github.com/HenningKristensenDK/klik/issues).
 
 ## Now (0.3)
+- 0.3.4: Klik's own icon, the RTPM mark with a dot in the centre, navy on a transparent background, also at the start of the toolbar; right-click on the taskbar icon no longer repeats "Take screenshot", since a click on the icon already takes one; it lists "Gallery" instead. The gallery shows every screenshot; click one to mark or crop it again.
 - 0.3.3: a watermark in the framed area shows that the mouse wheel makes a long image. Crop: drag the small handles on the frame, also on a long screenshot; `Ctrl+Z` undoes it. Studio is hidden for 1.0, so a click on the Klik icon takes a screenshot. "Send feedback" in the tray menu.
 - 0.3.2: move a marking by dragging it; click it, then `Del` or its small x deletes it; a colour click recolours it; double-click a comment to edit it. The screen around a framed area is lighter (RTPM Navy 55 %).
 - 0.3.1: the version number shows, small, in the editor's hint and next to "Klik Studio". Around a framed area the screen is RTPM Navy at 80 %, so the eye stays on the area; while you pick the area it is a light 30 %, so you see what to frame.
