@@ -36,7 +36,8 @@ Klik follows the RTPM product UI rules in `038-KNW-Universal brand color font an
 - Calm and light: white toolbar and hint, border `#e6e6f0`, text `#15162b`.
 - Active tool: Primary Indigo `#0d08d2`. One primary action per screen: "Kopiér" in Accent Yellow `#ffcc00`.
 - Marking colours: red `#C0392B`, indigo `#0d08d2`, green `#27AE60`, yellow `#ffcc00` (highlighter), ink `#15162b`. Numbered arrows default to indigo, pen and line to red.
-- App icon: the RTPM app icon, white mark on Ink Navy `#070474` (Henning 2026.11.18, 0.2.5; replaces the blue Klik icon of 0.2.4), so Klik is recognisably RTPM's. Source: `app/src-tauri/icons/app-icon.png`, a copy of `rtpm-appicon-1024.png` from RTPM's brand system; regenerate the set with `npx tauri icon src-tauri/icons/app-icon.png -o src-tauri/icons` in `app` and delete the `android` and `ios` folders it adds. Windows caches taskbar icons, so a pinned Klik icon can keep the old look until Windows refreshes it.
+- App icon (0.3.4, Henning 2026.11.26): the RTPM mark alone in Ink Navy `#070474` on a transparent background, no square (logo spec v2 retired the app tile). Sizes up to 32 px use the tab-icon geometry so the channels stay open; drawn by script from the logo spec's geometry. Known limit: on a dark taskbar navy is hard to see; the Store package (MSIX) can carry a white variant for dark taskbars. Before 0.3.4: white mark on navy (0.2.5).
+- The RTPM mark sits at the start of the editor toolbar, Ink Navy, tooltip "Klik by Real Time Project Management". Not in the saved image: users' screenshots carry no watermark. Source: `app/src-tauri/icons/app-icon.png`, a copy of `rtpm-appicon-1024.png` from RTPM's brand system; regenerate the set with `npx tauri icon src-tauri/icons/app-icon.png -o src-tauri/icons` in `app` and delete the `android` and `ios` folders it adds. Windows caches taskbar icons, so a pinned Klik icon can keep the old look until Windows refreshes it.
 - Sentence case in all UI text.
 - Installer publisher: Real Time Project Management.
 
@@ -215,7 +216,7 @@ Klik turns one rough demo recording (F6, F7, F8) into finished LinkedIn content,
 
 ### F16. Klik Studio: carousels and slides from screenshots: Should, Built, hidden in 1.0
 
-Hidden from 0.3.3 (Henning 2026.11.26: release the screenshot tool first, rethink Studio). The code stays; `STUDIO` in `app/src/flags.ts` and `SHOW_STUDIO` in `lib.rs` bring it back. While hidden: no Studio button or `S` key in the editor, no Studio items in the tray menu or the jump list, and a click on the Klik icon (taskbar, tray, Start menu) takes a screenshot.
+Hidden from 0.3.3 (Henning 2026.11.26: release the screenshot tool first, rethink Studio). From 0.3.4 the window shows a gallery instead (Henning 2026.11.26, first simple Studio): every screenshot, newest first, with its date; a click opens it in the editor to mark or crop it again, and the thumbnail updates. Reached from the tray menu ("Gallery") and the right-click list on the taskbar icon ("Gallery"). "New screenshot" is the one yellow button. The code stays; `STUDIO` in `app/src/flags.ts` and `SHOW_STUDIO` in `lib.rs` bring it back. While hidden: no Studio button or `S` key in the editor, no Studio items in the tray menu or the jump list, and a click on the Klik icon (taskbar, tray, Start menu) takes a screenshot.
 
 A second window of Klik, ported from the separate Klik Content app (old repo, PR #4 and #5) so all of Klik is one app and one installer. Requirement numbers S1 to S7 carry over Klik Content's C1 to C8.
 
