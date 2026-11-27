@@ -2,7 +2,12 @@
 
 Klik grows one feature at a time, each as a new version. Ideas and votes: [issues](https://github.com/HenningKristensenDK/klik/issues).
 
-## Now (0.3)
+## 1.0: first Microsoft Store version
+- Klik 1.0.0 is 0.3.5 plus fixes. Later: 1.1 and 1.2 add features, 1.0.x fixes bugs.
+- A long screenshot opens again from the gallery: larger than the screen, it opens as it is, in the tall view that scrolls, with the crop handles on the image. Cropping saves over the file, and the gallery picture updates.
+- The gallery shows dates as 2026.11.25 - 12:04.
+
+## 0.3
 - 0.3.5: the gallery shows dates as 2026.11.26 19:36.
 - 0.3.4: Klik's own icon, the RTPM mark with a dot in the centre, navy on a transparent background, also at the start of the toolbar; right-click on the taskbar icon no longer repeats "Take screenshot", since a click on the icon already takes one; it lists "Gallery" instead. The gallery shows every screenshot; click one to mark or crop it again.
 - 0.3.3: a watermark in the framed area shows that the mouse wheel makes a long image. Crop: drag the small handles on the frame, also on a long screenshot; `Ctrl+Z` undoes it. Studio is hidden for 1.0, so a click on the Klik icon takes a screenshot. "Send feedback" in the tray menu.
@@ -26,7 +31,6 @@ Klik grows one feature at a time, each as a new version. Ideas and votes: [issue
 - 0.2.5: the RTPM app icon replaces the Klik icon. A click on the Klik icon on the taskbar opens Klik Studio; right-click it for "Take screenshot" or "Klik Studio". "New screenshot" in Studio takes one without the hotkey.
 
 ## Next
-- **Klik 1.0 in the Microsoft Store:** free, signed by Microsoft, updates by themselves.
 - **Studio 2:** rethought around one job, from your screenshots to a finished post or deck, with Claude writing the story.
 - **0.4.0 Video of the area:** one video button (key `R`), webcam bubble, voice, 16:9, 4:5 or 1:1, MP4 to `Videos\Klik` and the clipboard.
 - **Microsoft Store:** one-click install, signed, automatic updates.

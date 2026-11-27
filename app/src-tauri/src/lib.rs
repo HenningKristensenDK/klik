@@ -154,9 +154,31 @@ fn compose(mon_w: u32, mon_h: u32, img: &image::RgbaImage) -> Result<(Vec<u8>, [
     Ok((out, [x0, y0, w, h]))
 }
 
-/// Studio's pencil: reopen a saved screenshot in the editor, already
-/// selected, so new markings go on top. Every change saves over the same
-/// file, and Studio redraws the slides that use it.
+/// How a reopened screenshot is shown in the editor.
+#[derive(Debug, PartialEq)]
+enum Reopen {
+    /// It fits the monitor: centred on the Ink backdrop, as a capture looks.
+    Backdrop,
+    /// Larger than the monitor (a long screenshot): the image itself, in the
+    /// editor's tall mode, where the page scrolls.
+    AsIs,
+    /// Larger than the editor's canvas can hold.
+    TooLarge,
+}
+
+fn reopen_layout(mon_w: u32, mon_h: u32, w: u32, h: u32) -> Reopen {
+    if w <= mon_w && h <= mon_h {
+        Reopen::Backdrop
+    } else if w > LONG_MAX_H || h > LONG_MAX_H {
+        Reopen::TooLarge
+    } else {
+        Reopen::AsIs
+    }
+}
+
+/// The gallery's pencil: reopen a saved screenshot in the editor, already
+/// selected, so new markings and crops go on top. Every change saves over the
+/// same file, and the gallery (or Studio) redraws it.
 #[tauri::command(async)]
 fn edit_capture(app: AppHandle, name: String) -> Result<(), String> {
     let win = overlay(&app).ok_or("overlay window missing")?;
@@ -169,15 +191,31 @@ fn edit_capture(app: AppHandle, name: String) -> Result<(), String> {
     let cursor = app.cursor_position().map_err(err)?;
     let mon = xcap::Monitor::from_point(cursor.x as i32, cursor.y as i32).map_err(err)?;
     let (mw, mh) = (mon.width().map_err(err)?, mon.height().map_err(err)?);
-    let (rgba, sel) = compose(mw, mh, &img)?;
+    let (w, h) = img.dimensions();
+    // The editor gets [x, y, w, h] of the selection, plus 1 when it should
+    // open in tall mode (the image itself, larger than the screen).
+    let (shot, pre): ((u32, u32, Vec<u8>), Vec<u32>) = match reopen_layout(mw, mh, w, h) {
+        Reopen::Backdrop => {
+            let (rgba, sel) = compose(mw, mh, &img)?;
+            ((mw, mh, rgba), sel.to_vec())
+        }
+        Reopen::AsIs => ((w, h, img.into_raw()), vec![0, 0, w, h, 1]),
+        Reopen::TooLarge => {
+            return Err(if danish() {
+                format!("Skærmbilledet ({w} x {h}) er for stort til at åbne. Højst {LONG_MAX_H} px.")
+            } else {
+                format!("The screenshot ({w} x {h}) is too large to open. At most {LONG_MAX_H} px.")
+            })
+        }
+    };
 
-    *app.state::<Shot>().0.lock().unwrap() = Some((mw, mh, rgba));
+    *app.state::<Shot>().0.lock().unwrap() = Some(shot);
     *app.state::<CurrentFile>().0.lock().unwrap() = Some(path.clone());
     *app.state::<Editing>().0.lock().unwrap() = Some((path, bytes));
 
     win.set_position(PhysicalPosition::new(mon.x().map_err(err)?, mon.y().map_err(err)?)).map_err(err)?;
     win.set_size(PhysicalSize::new(mw, mh)).map_err(err)?;
-    win.emit("captured", Some(sel)).map_err(err)?;
+    win.emit("captured", Some(pre)).map_err(err)?;
     Ok(())
 }
 
@@ -982,6 +1020,19 @@ mod studio_tests {
         assert_eq!(at(6, 3), [200, 30, 30, 255]);
         assert_eq!(at(7, 3), BACKDROP);
         assert!(compose(3, 6, &img).is_err(), "wider than the screen");
+    }
+
+    #[test]
+    fn reopen_fits_on_backdrop_or_opens_as_is() {
+        // Fits the 2560 x 1440 screen: centred on the backdrop, as today.
+        assert_eq!(reopen_layout(2560, 1440, 1114, 800), Reopen::Backdrop);
+        assert_eq!(reopen_layout(2560, 1440, 2560, 1440), Reopen::Backdrop);
+        // The long screenshot from the bug report: the image itself, tall mode.
+        assert_eq!(reopen_layout(2560, 1440, 1114, 12441), Reopen::AsIs);
+        assert_eq!(reopen_layout(2560, 1440, 3000, 900), Reopen::AsIs);
+        assert_eq!(reopen_layout(2560, 1440, 1114, LONG_MAX_H), Reopen::AsIs);
+        // Beyond the canvas limit: the gallery says so.
+        assert_eq!(reopen_layout(2560, 1440, 1114, LONG_MAX_H + 1), Reopen::TooLarge);
     }
 
     #[test]

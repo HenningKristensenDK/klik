@@ -2,20 +2,24 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { inTauri } from "../bridge";
+import { DEMO_LONG, demoLongPage, inTauri } from "../bridge";
 
 export type Capture = { name: string; modified: number };
+
+/** Fixed change times for the demo files, so the gallery only rereads a changed one. */
+const DEMO_T = Date.now();
 
 export async function listCaptures(): Promise<Capture[]> {
   if (inTauri) return invoke<Capture[]>("list_captures");
   return [
-    { name: "Klik demo register.png", modified: Date.now() },
-    { name: "Klik demo item.png", modified: Date.now() - 60_000 },
+    { name: "Klik demo register.png", modified: DEMO_T },
+    { name: "Klik demo item.png", modified: DEMO_T - 60_000 },
+    { name: DEMO_LONG.name, modified: DEMO_T - 120_000 },
   ];
 }
 
 export async function readCapture(name: string): Promise<Blob> {
-  if (!inTauri) return demoImage(name);
+  if (!inTauri) return name === DEMO_LONG.name ? demoLongPage().convertToBlob({ type: "image/png" }) : demoImage(name);
   const buf = await invoke<ArrayBuffer>("read_capture", { name });
   return new Blob([buf], { type: "image/png" });
 }

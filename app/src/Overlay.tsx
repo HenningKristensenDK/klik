@@ -101,10 +101,16 @@ export function Overlay() {
   const hotkey = useRef<string | null>(null);
   const frame = useRef(0);
 
-  /** Image pixels per CSS pixel. */
+  /**
+   * Image pixels per CSS pixel. In tall mode the image is shown at the scale it
+   * was taken at, so this is known before the browser lays the page out; a
+   * freshly reopened long screenshot would otherwise measure the old size.
+   */
   const k = () => {
     const c = canvasRef.current;
-    return c && shot.current ? shot.current.w / c.getBoundingClientRect().width : 1;
+    if (!c || !shot.current) return 1;
+    if (st.current.tall) return window.devicePixelRatio || 1;
+    return shot.current.w / c.getBoundingClientRect().width;
   };
 
   const paint = useCallback(() => {
@@ -129,8 +135,10 @@ export function Overlay() {
         const c = canvasRef.current!;
         c.width = next.w;
         c.height = next.h;
-        // A screenshot reopened from Studio arrives already selected, ready to mark.
+        // A screenshot reopened from the gallery arrives already selected, ready
+        // to mark. One larger than the screen opens as is, in tall mode.
         const sel = pre ? { x: pre[0], y: pre[1], w: pre[2], h: pre[3] } : null;
+        const tall = pre?.[4] === 1;
         live.current?.close();
         live.current = null;
         Object.assign(st.current, {
@@ -147,7 +155,7 @@ export function Overlay() {
           picked: null,
           drag: null,
           past: [],
-          tall: false,
+          tall,
           longH: 0,
           wheelAcc: 0,
           hintGone: false,
@@ -698,9 +706,11 @@ export function Overlay() {
         s.editing === null &&
         !s.draft &&
         (() => {
+          // In tall mode the sheet is the image's size; measure from that, not
+          // from a layout that may not have caught up yet.
           const r = canvasRef.current?.getBoundingClientRect();
-          const W = r?.width ?? window.innerWidth;
-          const H = r?.height ?? window.innerHeight;
+          const W = s.tall && shot.current ? shot.current.w / dpr : (r?.width ?? window.innerWidth);
+          const H = s.tall && shot.current ? shot.current.h / dpr : (r?.height ?? window.innerHeight);
           const pos: Record<Handle, [number, number]> = {
             nw: [selCss.x, selCss.y],
             n: [selCss.x + selCss.w / 2, selCss.y],
