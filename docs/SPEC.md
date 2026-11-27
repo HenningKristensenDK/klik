@@ -65,7 +65,7 @@ Priority: **Must** = MVP, **Should** = next release, **Could** = later.
 |---|---|---|
 | Highlighter | `M` | Semi-transparent yellow marker. Text underneath stays readable. Default tool. |
 | Arrow with number | `A` | Drag draws an arrow with a numbered badge (1, 2, 3 …) at its start. The number counts up by itself. A click without dragging gives only the badge. |
-| Arrow with comment | `K` | Drag from where the comment should sit to what it points at. A text field opens there; type, then Enter (or Esc, or a click elsewhere) to finish. Shift+Enter gives a new line. A click without dragging gives only the comment box. 15 px Inter in a white box with a coloured border, wrapping at 280 px. An empty comment is removed. |
+| Text with arrow | `K` | Icon: a T with a small arrow (1.0.0; the earlier speech bubble was not read as text in the Windows test 2026.11.27). Drag from where the comment should sit to what it points at. A text field opens there; type, then Enter (or Esc, or a click elsewhere) to finish. Shift+Enter gives a new line. A click without dragging gives only the comment box. 15 px Inter in a white box with a coloured border, wrapping at 280 px. An empty comment is removed. |
 | Freehand pen | `P` | Smooth freehand line. |
 | Line | `L` | Straight line. |
 

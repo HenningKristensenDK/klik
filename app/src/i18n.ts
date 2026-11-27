@@ -3,7 +3,7 @@
 const en = {
   highlight: "Highlighter",
   arrow: "Numbered arrow",
-  callout: "Arrow with comment",
+  callout: "Text with arrow",
   pen: "Pen",
   line: "Line",
   hintDrag: "Drag",
@@ -143,7 +143,7 @@ const en = {
 const da: typeof en = {
   highlight: "Marker",
   arrow: "Pil med nummer",
-  callout: "Pil med kommentar",
+  callout: "Tekst med pil",
   pen: "Frihånd",
   line: "Linje",
   hintDrag: "Træk",
