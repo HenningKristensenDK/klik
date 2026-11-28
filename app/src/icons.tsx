@@ -11,12 +11,10 @@ const P: Record<string, React.ReactNode> = {
       <path d="M9.5 14.5L19 5M12.5 5H19v6.5" />
     </>
   ),
-  // Text with arrow: a plain T, since a speech bubble was not read as text
-  // (Windows test 2026.11.27), plus a small arrow for "points at".
   callout: (
     <>
-      <path d="M3 4h12M9 4v13" strokeWidth="2.4" />
-      <path d="M14.5 14.5L20 20M20 15.5V20h-4.5" />
+      <rect x="2.5" y="3.5" width="13" height="9" rx="2" />
+      <path d="M5.5 7h7M5.5 9.5h4.5M14 14.5l6 5M16.5 20h3.5v-3.5" />
     </>
   ),
   pen: <path d="M4 18c3-1 4-6 7-6s2 5 5 5 3-5 4-7" />,

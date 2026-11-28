@@ -202,7 +202,7 @@ export function drawShape(ctx: CanvasRenderingContext2D, sh: Shape, s: number, b
 /** Navy over the screen: light while you pick the area, so you see what to
  *  frame; darker around a framed area, so the eye stays on it and the rest
  *  still reads. */
-export const DIM = { picking: 0.3, framed: 0.55 };
+export const DIM = { picking: 0.3, framed: 0.5 };
 
 // ---------- Moving and deleting markings ----------
 

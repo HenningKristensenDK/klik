@@ -7,7 +7,7 @@ Klik grows one feature at a time, each as a new version. Ideas and votes: [issue
 - A long screenshot opens again from the gallery: larger than the screen, it opens as it is, in the tall view that scrolls, with the crop handles on the image. Cropping saves over the file, and the gallery picture updates.
 - The gallery shows dates as 2026.11.25 - 12:04.
 - A screenshot reopened from the gallery sits on your screen as it is, under the same light navy as after a capture, instead of on dark Ink, so you still see what lies behind.
-- The text tool (key `K`) shows a T with a small arrow, "Text with arrow", instead of a speech bubble that was not read as text.
+- Around a framed area the screen is RTPM Navy at 50 % (was 55 %), after a capture and on a reopened screenshot.
 
 ## 0.3
 - 0.3.5: the gallery shows dates as 2026.11.26 19:36.
