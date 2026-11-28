@@ -17,7 +17,13 @@ async function parseShot(buf: ArrayBuffer): Promise<Shot> {
 }
 
 export async function loadShot(): Promise<Shot> {
-  if (!inTauri) return demoShot();
+  if (!inTauri) {
+    if (demoEdit() === "long") {
+      const c = demoLongPage();
+      return { bitmap: c.transferToImageBitmap(), w: DEMO_LONG.w, h: DEMO_LONG.h };
+    }
+    return demoShot();
+  }
   return parseShot(await invoke<ArrayBuffer>("get_shot"));
 }
 
@@ -133,16 +139,31 @@ function demoPage(w: number, h: number): OffscreenCanvas {
   return c;
 }
 
-/** Where a reopened screenshot sits on the backdrop: x, y, w, h in image pixels. */
-export type Preselect = [number, number, number, number] | null;
+/**
+ * Where a reopened screenshot sits: x, y, w, h in image pixels. A fifth value
+ * of 1 means it is larger than the screen and opens as is, in tall mode.
+ */
+export type Preselect = [number, number, number, number] | [number, number, number, number, number] | null;
+
+/** The long screenshot from the 1.0 bug report, for the browser demo. */
+export const DEMO_LONG = { name: "Klik demo long.png", w: 1114, h: 12441 };
+
+/** `?edit` reopens the demo desktop; `?edit=long` reopens the long demo screenshot. */
+function demoEdit(): "" | "plain" | "long" {
+  const q = new URLSearchParams(location.search);
+  if (!q.has("edit")) return "";
+  return q.get("edit") === "long" ? "long" : "plain";
+}
 
 /**
- * A new capture, or a saved screenshot reopened from Studio (then `sel` says
- * where it is, already selected). In a plain browser, `?edit` simulates the latter.
+ * A new capture, or a saved screenshot reopened from the gallery or Studio
+ * (then `sel` says where it is, already selected). In a plain browser, `?edit`
+ * and `?edit=long` simulate the latter.
  */
 export function onCaptured(cb: (sel: Preselect) => void): () => void {
   if (!inTauri) {
-    cb(new URLSearchParams(location.search).has("edit") ? [160, 120, 480, 300] : null);
+    const e = demoEdit();
+    cb(e === "long" ? [0, 0, DEMO_LONG.w, DEMO_LONG.h, 1] : e === "plain" ? [160, 120, 480, 300] : null);
     return () => {};
   }
   let off = () => {};
@@ -219,4 +240,37 @@ async function demoShot(): Promise<Shot> {
   g.fillStyle = "rgba(15,23,42,0.85)";
   g.fillRect(0, H - 48, W, 48);
   return { bitmap: c.transferToImageBitmap(), w, h };
+}
+
+/** A long product page, 1114 x 12441, like a long screenshot saved by Klik. Sample data. */
+export function demoLongPage(): OffscreenCanvas {
+  const { w, h } = DEMO_LONG;
+  const c = new OffscreenCanvas(w, h);
+  const g = c.getContext("2d")!;
+  g.fillStyle = "#F7F7FB";
+  g.fillRect(0, 0, w, h);
+  g.fillStyle = "#070474";
+  g.fillRect(0, 0, w, 120);
+  g.fillStyle = "#FFFFFF";
+  g.font = "700 40px Inter, sans-serif";
+  g.fillText("Interface register (sample data)", 48, 76);
+  for (let y = 160, i = 1; y < h - 120; y += 96, i++) {
+    if (i % 25 === 1) {
+      g.fillStyle = "#0D08D2";
+      g.font = "600 30px Inter, sans-serif";
+      g.fillText(`Section ${Math.ceil(i / 25)}`, 48, y + 52);
+      continue;
+    }
+    g.fillStyle = i % 2 ? "#FFFFFF" : "#FAFAFD";
+    g.fillRect(48, y, w - 96, 84);
+    g.fillStyle = "#15162B";
+    g.font = "400 26px Inter, sans-serif";
+    g.fillText(`IF-${String(i).padStart(4, "0")}  Cable entry detail  Owner: Contractor ${i % 3 ? "A" : "B"}`, 72, y + 52);
+  }
+  g.fillStyle = "#C0392B";
+  g.fillRect(0, h - 120, w, 120);
+  g.fillStyle = "#FFFFFF";
+  g.font = "700 36px Inter, sans-serif";
+  g.fillText("End of page", 48, h - 48);
+  return c;
 }

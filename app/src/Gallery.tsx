@@ -12,15 +12,20 @@ export function Gallery() {
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
   const [loaded, setLoaded] = useState(false);
   const [note, setNote] = useState("");
-  const urls = useRef(new Map<string, string>());
+  /** Thumbnail per file, with the file's change time it was made from. */
+  const urls = useRef(new Map<string, { url: string; modified: number }>());
 
-  const loadThumb = useCallback(async (name: string, fresh = false) => {
-    if (!fresh && urls.current.has(name)) return;
+  /**
+   * Reads a thumbnail again when the file changed (a crop or new markings keep
+   * the same name), so the gallery never shows a stale picture.
+   */
+  const loadThumb = useCallback(async (name: string, modified: number) => {
+    const had = urls.current.get(name);
+    if (had && had.modified === modified) return;
     try {
       const url = URL.createObjectURL(await readCapture(name));
-      const old = urls.current.get(name);
-      if (old) URL.revokeObjectURL(old);
-      urls.current.set(name, url);
+      if (had) URL.revokeObjectURL(had.url);
+      urls.current.set(name, { url, modified });
       setThumbs((all) => ({ ...all, [name]: url }));
     } catch {
       /* the file was deleted */
@@ -31,7 +36,7 @@ export function Gallery() {
     try {
       const list = [...(await listCaptures())].sort((a, b) => b.modified - a.modified);
       setCaptures(list);
-      for (const c of list) await loadThumb(c.name);
+      for (const c of list) await loadThumb(c.name, c.modified);
     } catch (e) {
       setNote(String(e));
     }
@@ -43,7 +48,9 @@ export function Gallery() {
     window.addEventListener("focus", refresh);
     // A screenshot marked or cropped again: show its new look.
     const off = onCaptureSaved((name) => {
-      loadThumb(name, true);
+      // Mark it stale, so the refresh reads the new picture exactly once.
+      const had = urls.current.get(name);
+      if (had) had.modified = -1;
       refresh();
     });
     return () => {
@@ -61,11 +68,11 @@ export function Gallery() {
     }
   };
 
-  /** 2026.11.26 19:36: the date as in Klik's file names, 24-hour time. */
+  /** "2026.11.25 - 12:04": the date as in Klik's file names, 24-hour time. */
   const when = (ms: number) => {
     const d = new Date(ms);
     const two = (n: number) => String(n).padStart(2, "0");
-    return `${d.getFullYear()}.${two(d.getMonth() + 1)}.${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}`;
+    return `${d.getFullYear()}.${two(d.getMonth() + 1)}.${two(d.getDate())} - ${two(d.getHours())}:${two(d.getMinutes())}`;
   };
 
   return (

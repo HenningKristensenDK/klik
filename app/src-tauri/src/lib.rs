@@ -133,18 +133,25 @@ fn capture(app: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// Ink `#15162b`, behind a reopened screenshot.
+/// Ink `#15162b`, behind a reopened screenshot when the screen cannot be read.
 const BACKDROP: [u8; 4] = [0x15, 0x16, 0x2b, 0xff];
 
-/// Puts `img` in the middle of a monitor-sized backdrop. Returns the RGBA
-/// pixels and where the image sits (x, y, w, h), which the editor selects.
-fn compose(mon_w: u32, mon_h: u32, img: &image::RgbaImage) -> Result<(Vec<u8>, [u32; 4]), String> {
+/// Puts `img` in the middle of the screen as it is now (`behind`, RGBA of the
+/// monitor), so the editor's navy dim shows what lies behind, as after a
+/// capture. Falls back to Ink when `behind` is missing or the wrong size.
+/// Returns the RGBA pixels and where the image sits (x, y, w, h), which the
+/// editor selects.
+fn compose(mon_w: u32, mon_h: u32, img: &image::RgbaImage, behind: Option<Vec<u8>>) -> Result<(Vec<u8>, [u32; 4]), String> {
     let (w, h) = img.dimensions();
     if w > mon_w || h > mon_h {
         return Err(format!("The screenshot ({w} x {h}) is larger than this screen ({mon_w} x {mon_h})."));
     }
     let (x0, y0) = ((mon_w - w) / 2, (mon_h - h) / 2);
-    let mut out = BACKDROP.repeat((mon_w * mon_h) as usize);
+    let size = (mon_w * mon_h * 4) as usize;
+    let mut out = match behind {
+        Some(px) if px.len() == size => px,
+        _ => BACKDROP.repeat((mon_w * mon_h) as usize),
+    };
     let row = (w * 4) as usize;
     for y in 0..h {
         let src = (y * w * 4) as usize;
@@ -154,9 +161,31 @@ fn compose(mon_w: u32, mon_h: u32, img: &image::RgbaImage) -> Result<(Vec<u8>, [
     Ok((out, [x0, y0, w, h]))
 }
 
-/// Studio's pencil: reopen a saved screenshot in the editor, already
-/// selected, so new markings go on top. Every change saves over the same
-/// file, and Studio redraws the slides that use it.
+/// How a reopened screenshot is shown in the editor.
+#[derive(Debug, PartialEq)]
+enum Reopen {
+    /// It fits the monitor: centred on the Ink backdrop, as a capture looks.
+    Backdrop,
+    /// Larger than the monitor (a long screenshot): the image itself, in the
+    /// editor's tall mode, where the page scrolls.
+    AsIs,
+    /// Larger than the editor's canvas can hold.
+    TooLarge,
+}
+
+fn reopen_layout(mon_w: u32, mon_h: u32, w: u32, h: u32) -> Reopen {
+    if w <= mon_w && h <= mon_h {
+        Reopen::Backdrop
+    } else if w > LONG_MAX_H || h > LONG_MAX_H {
+        Reopen::TooLarge
+    } else {
+        Reopen::AsIs
+    }
+}
+
+/// The gallery's pencil: reopen a saved screenshot in the editor, already
+/// selected, so new markings and crops go on top. Every change saves over the
+/// same file, and the gallery (or Studio) redraws it.
 #[tauri::command(async)]
 fn edit_capture(app: AppHandle, name: String) -> Result<(), String> {
     let win = overlay(&app).ok_or("overlay window missing")?;
@@ -169,15 +198,33 @@ fn edit_capture(app: AppHandle, name: String) -> Result<(), String> {
     let cursor = app.cursor_position().map_err(err)?;
     let mon = xcap::Monitor::from_point(cursor.x as i32, cursor.y as i32).map_err(err)?;
     let (mw, mh) = (mon.width().map_err(err)?, mon.height().map_err(err)?);
-    let (rgba, sel) = compose(mw, mh, &img)?;
+    let (w, h) = img.dimensions();
+    // The editor gets [x, y, w, h] of the selection, plus 1 when it should
+    // open in tall mode (the image itself, larger than the screen).
+    let (shot, pre): ((u32, u32, Vec<u8>), Vec<u32>) = match reopen_layout(mw, mh, w, h) {
+        Reopen::Backdrop => {
+            // The editor is hidden here, so this is the screen behind it.
+            let behind = mon.capture_image().ok().map(|b| b.into_raw());
+            let (rgba, sel) = compose(mw, mh, &img, behind)?;
+            ((mw, mh, rgba), sel.to_vec())
+        }
+        Reopen::AsIs => ((w, h, img.into_raw()), vec![0, 0, w, h, 1]),
+        Reopen::TooLarge => {
+            return Err(if danish() {
+                format!("Skærmbilledet ({w} x {h}) er for stort til at åbne. Højst {LONG_MAX_H} px.")
+            } else {
+                format!("The screenshot ({w} x {h}) is too large to open. At most {LONG_MAX_H} px.")
+            })
+        }
+    };
 
-    *app.state::<Shot>().0.lock().unwrap() = Some((mw, mh, rgba));
+    *app.state::<Shot>().0.lock().unwrap() = Some(shot);
     *app.state::<CurrentFile>().0.lock().unwrap() = Some(path.clone());
     *app.state::<Editing>().0.lock().unwrap() = Some((path, bytes));
 
     win.set_position(PhysicalPosition::new(mon.x().map_err(err)?, mon.y().map_err(err)?)).map_err(err)?;
     win.set_size(PhysicalSize::new(mw, mh)).map_err(err)?;
-    win.emit("captured", Some(sel)).map_err(err)?;
+    win.emit("captured", Some(pre)).map_err(err)?;
     Ok(())
 }
 
@@ -973,15 +1020,37 @@ mod studio_tests {
     #[test]
     fn reopened_screenshot_sits_centred_on_the_backdrop() {
         let img = image::RgbaImage::from_pixel(4, 2, image::Rgba([200, 30, 30, 255]));
-        let (px, sel) = compose(10, 6, &img).unwrap();
+        let (px, sel) = compose(10, 6, &img, None).unwrap();
         assert_eq!(sel, [3, 2, 4, 2]);
         assert_eq!(px.len(), 10 * 6 * 4);
-        let at = |x: usize, y: usize| &px[(y * 10 + x) * 4..(y * 10 + x) * 4 + 4];
-        assert_eq!(at(0, 0), BACKDROP);
-        assert_eq!(at(3, 2), [200, 30, 30, 255]);
-        assert_eq!(at(6, 3), [200, 30, 30, 255]);
-        assert_eq!(at(7, 3), BACKDROP);
-        assert!(compose(3, 6, &img).is_err(), "wider than the screen");
+        let at = |px: &[u8], x: usize, y: usize| px[(y * 10 + x) * 4..(y * 10 + x) * 4 + 4].to_vec();
+        assert_eq!(at(&px, 0, 0), BACKDROP);
+        assert_eq!(at(&px, 3, 2), [200, 30, 30, 255]);
+        assert_eq!(at(&px, 6, 3), [200, 30, 30, 255]);
+        assert_eq!(at(&px, 7, 3), BACKDROP);
+        assert!(compose(3, 6, &img, None).is_err(), "wider than the screen");
+
+        // The screen behind shows around the screenshot.
+        let screen = [9u8, 99, 199, 255].repeat(10 * 6);
+        let (px, _) = compose(10, 6, &img, Some(screen)).unwrap();
+        assert_eq!(at(&px, 0, 0), [9, 99, 199, 255]);
+        assert_eq!(at(&px, 3, 2), [200, 30, 30, 255]);
+        // A screen of the wrong size falls back to Ink.
+        let (px, _) = compose(10, 6, &img, Some(vec![1, 2, 3, 4])).unwrap();
+        assert_eq!(at(&px, 0, 0), BACKDROP);
+    }
+
+    #[test]
+    fn reopen_fits_on_backdrop_or_opens_as_is() {
+        // Fits the 2560 x 1440 screen: centred on the backdrop, as today.
+        assert_eq!(reopen_layout(2560, 1440, 1114, 800), Reopen::Backdrop);
+        assert_eq!(reopen_layout(2560, 1440, 2560, 1440), Reopen::Backdrop);
+        // The long screenshot from the bug report: the image itself, tall mode.
+        assert_eq!(reopen_layout(2560, 1440, 1114, 12441), Reopen::AsIs);
+        assert_eq!(reopen_layout(2560, 1440, 3000, 900), Reopen::AsIs);
+        assert_eq!(reopen_layout(2560, 1440, 1114, LONG_MAX_H), Reopen::AsIs);
+        // Beyond the canvas limit: the gallery says so.
+        assert_eq!(reopen_layout(2560, 1440, 1114, LONG_MAX_H + 1), Reopen::TooLarge);
     }
 
     #[test]
