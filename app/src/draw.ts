@@ -27,7 +27,7 @@ export const CALLOUT_FONT = (px: number) => `500 ${px}px "Inter", "Segoe UI", sy
  * box), and every measure is a share of the font size, so a corner drag scales
  * text, box and corners together. RTPM content brand: it is part of the image.
  */
-export const TEXT = { size: 32, minSize: 10, maxSize: 400, lineH: 1.02, pad: 0.22, radius: 0.117, alpha: 0.75 };
+export const TEXT = { size: 32, minSize: 10, maxSize: 400, lineH: 1.18, pad: 0.22, radius: 0.117, alpha: 0.75 };
 export const TEXT_FONT = (px: number) => `600 ${px}px "Barlow Semi Condensed", "Segoe UI", system-ui, sans-serif`;
 
 /** White text, except on gold, where ink reads better. */
