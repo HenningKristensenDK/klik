@@ -198,6 +198,21 @@ export const close = (discard: boolean) => (inTauri ? invoke("close", { discard 
 /** Hide the overlay and add the saved screenshot as a slide in Klik Studio. */
 export const closeToStudio = () => (inTauri ? invoke("close_to_studio") : Promise.resolve());
 
+/** Hide the overlay (the screenshot is already saved) and open the gallery. */
+export const closeToGallery = () => (inTauri ? invoke("close_to_gallery") : Promise.resolve());
+
+/** Whether Windows lets Klik ask to be pinned to the taskbar, and whether it is. */
+export type PinState = { allowed: boolean; pinned: boolean };
+let demoPinned = false;
+export const pinState = (): Promise<PinState> =>
+  inTauri ? invoke<PinState>("pin_state") : Promise.resolve({ allowed: true, pinned: demoPinned });
+/** Ask Windows to show its "Pin to taskbar?" prompt. */
+export const requestPin = (): Promise<unknown> => {
+  if (inTauri) return invoke("request_pin");
+  demoPinned = true;
+  return Promise.resolve();
+};
+
 /** Copy to the clipboard and save to Pictures\Klik. `rgba` = width, height (u32 LE) + RGBA pixels. */
 export async function saveCopy(rgba: Uint8Array): Promise<string> {
   if (inTauri) return invoke<string>("save_copy", rgba);

@@ -25,6 +25,21 @@ const P: Record<string, React.ReactNode> = {
     </>
   ),
   pen: <path d="M4 18c3-1 4-6 7-6s2 5 5 5 3-5 4-7" />,
+  // The gallery (1.2): four small pictures.
+  gallery: (
+    <>
+      <rect x="4" y="4" width="7" height="7" rx="1.5" />
+      <rect x="13" y="4" width="7" height="7" rx="1.5" />
+      <rect x="4" y="13" width="7" height="7" rx="1.5" />
+      <rect x="13" y="13" width="7" height="7" rx="1.5" />
+    </>
+  ),
+  pin: (
+    <>
+      <path d="M9 4h6l-1 6 3 3H7l3-3z" />
+      <path d="M12 16v4" />
+    </>
+  ),
   line: <path d="M5 19L19 5" />,
   undo: (
     <>

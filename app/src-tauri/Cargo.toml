@@ -1,6 +1,6 @@
 [package]
 name = "klik"
-version = "1.1.1"
+version = "1.2.0"
 description = "Klik - enkel screenshot"
 edition = "2021"
 
@@ -26,6 +26,8 @@ serde = { version = "1", features = ["derive"] }
 # long screenshot, the wheel sent to the window below and capture exclusion.
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.62", features = [
+  "Foundation",
+  "UI_Shell",
   "Win32_Foundation",
   "Win32_Graphics_Gdi",
   "Win32_Storage_EnhancedStorage",

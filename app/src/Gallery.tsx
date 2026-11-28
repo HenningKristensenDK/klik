@@ -1,6 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { editCapture, listCaptures, onCaptureSaved, readCapture, takeScreenshot, type Capture } from "./studio/io";
 import { t } from "./i18n";
+import { pinState, requestPin, type PinState } from "./bridge";
+import { Icon } from "./icons";
+
+const PIN_HIDDEN = "klik-pin-hidden";
+const pinHidden = () => {
+  try {
+    return localStorage.getItem(PIN_HIDDEN) === "1";
+  } catch {
+    return false;
+  }
+};
 import { VERSION } from "./version";
 
 /**
@@ -12,6 +23,12 @@ export function Gallery() {
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
   const [loaded, setLoaded] = useState(false);
   const [note, setNote] = useState("");
+  /** Klik on the taskbar yet? The pin line shows until it is, or until hidden. */
+  const [pin, setPin] = useState<PinState | null>(null);
+  const [hidePin, setHidePin] = useState(pinHidden);
+  const checkPin = useCallback(() => {
+    pinState().then(setPin, () => setPin({ allowed: false, pinned: false }));
+  }, []);
   /** Thumbnail per file, with the file's change time it was made from. */
   const urls = useRef(new Map<string, { url: string; modified: number }>());
 
@@ -42,6 +59,31 @@ export function Gallery() {
     }
     setLoaded(true);
   }, [loadThumb]);
+
+  useEffect(() => {
+    checkPin();
+    window.addEventListener("focus", checkPin);
+    return () => window.removeEventListener("focus", checkPin);
+  }, [checkPin]);
+
+  /** Windows shows its own "Pin to taskbar?" prompt; read the answer back. */
+  const askPin = async () => {
+    await requestPin().catch(() => {});
+    for (let i = 0; i < 20; i++) {
+      await new Promise((r) => setTimeout(r, 750));
+      const now = await pinState().catch(() => null);
+      if (now) setPin(now);
+      if (now?.pinned) break;
+    }
+  };
+  const hide = () => {
+    try {
+      localStorage.setItem(PIN_HIDDEN, "1");
+    } catch {
+      /* private storage off: hidden for this session only */
+    }
+    setHidePin(true);
+  };
 
   useEffect(() => {
     refresh();
@@ -93,6 +135,22 @@ export function Gallery() {
           {t.galleryNew}
         </button>
       </header>
+      {pin && !pin.pinned && !hidePin && (
+        <div className="g-pin">
+          {pin.allowed ? (
+            <button className="g-pin-ask" onClick={() => void askPin()}>
+              <Icon name="pin" /> <b>{t.pinAsk}</b> <span>{t.pinAskRest}</span>
+            </button>
+          ) : (
+            <span className="g-pin-manual">
+              <Icon name="pin" /> {t.pinManual}
+            </span>
+          )}
+          <button className="g-pin-x" title={t.pinHide} aria-label={t.pinHide} onClick={hide}>
+            <Icon name="close" />
+          </button>
+        </div>
+      )}
       {note && <p className="g-note">{note}</p>}
       {loaded && !captures.length && <p className="g-empty">{t.galleryEmpty}</p>}
       <main className="g-grid">

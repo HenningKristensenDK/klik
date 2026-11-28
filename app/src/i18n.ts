@@ -42,6 +42,11 @@ const en = {
   toast: "Saved and copied",
   toStudio: "Studio",
   toStudioTitle: "Add this screenshot as a slide in Klik Studio  (S)",
+  toGallery: "Gallery: all your screenshots  (G)",
+  pinAsk: "Pin Klik to the taskbar",
+  pinAskRest: "one click to a screenshot",
+  pinManual: "Pin Klik to the taskbar: find Klik in the Start menu, right-click it and choose Pin to taskbar.",
+  pinHide: "Hide",
   toastStudio: "Added to Klik Studio",
   studio: {
     titleAria: "Name of the post",
@@ -185,6 +190,11 @@ const da: typeof en = {
   toast: "Gemt og kopieret",
   toStudio: "Studio",
   toStudioTitle: "Læg dette screenshot ind som slide i Klik Studio  (S)",
+  toGallery: "Galleri: alle dine screenshots  (G)",
+  pinAsk: "Fastgør Klik til proceslinjen",
+  pinAskRest: "ét klik til et screenshot",
+  pinManual: "Fastgør Klik til proceslinjen: find Klik i Start-menuen, højreklik og vælg Fastgør til proceslinjen.",
+  pinHide: "Skjul",
   toastStudio: "Lagt ind i Klik Studio",
   studio: {
     titleAria: "Navn på opslaget",
