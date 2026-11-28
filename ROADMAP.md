@@ -5,7 +5,6 @@ Klik grows one feature at a time, each as a new version. Ideas and votes: [issue
 ## 1.2: the gallery one click away
 - A gallery button (`G`) in the editor: the screenshot is saved, the gallery opens, "New screenshot" leads back.
 - The first start after installing opens the gallery, with one line that asks Windows to pin Klik to the taskbar. The line goes once Klik is pinned.
-- Right-click on the taskbar icon no longer lists "Gallery".
 
 ## 1.1: text box and a calmer toolbar
 - 1.1.1: more air between the lines of a text box.

@@ -1019,7 +1019,7 @@ fn launch_kind<S: AsRef<str>>(args: &[S]) -> Launch {
 }
 
 /// Right-click on the Klik icon in the taskbar: "Take screenshot" and
-/// "Klik Studio" while Studio is shown; no tasks while it is hidden.
+/// "Klik Studio" while Studio is shown; only "Gallery" while it is hidden.
 #[cfg(windows)]
 fn set_jump_list(da: bool) -> windows::core::Result<()> {
     use windows::core::{Interface, HSTRING};
@@ -1046,13 +1046,15 @@ fn set_jump_list(da: bool) -> windows::core::Result<()> {
         let mut slots = 0u32;
         let _removed: IObjectArray = list.BeginList(&mut slots)?;
         let tasks: IObjectCollection = CoCreateInstance(&EnumerableObjectCollection, None, CLSCTX_INPROC_SERVER)?;
-        // While Studio is hidden the "Klik" entry itself takes a screenshot and
-        // the gallery is one click from the editor (1.2), so the list has no
-        // tasks: it is committed empty, which also clears the old "Gallery".
+        // While Studio is hidden the "Klik" entry itself takes a screenshot, so the
+        // only task is the gallery (Henning 2026.11.28: the taskbar icon must
+        // reach it too, next to the editor's gallery button).
         let mut items = Vec::new();
         if SHOW_STUDIO {
             items.push(("--shot", if da { "Tag screenshot" } else { "Take screenshot" }));
             items.push(("--studio", "Klik Studio"));
+        } else {
+            items.push(("--studio", if da { "Galleri" } else { "Gallery" }));
         }
         for (arg, title) in items {
             let link: IShellLinkW = CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER)?;
