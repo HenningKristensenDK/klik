@@ -149,6 +149,17 @@ p.warn { font-size: 13px; background: #fdf4dd; color: #8a6600; padding: 7px 10px
 .g-new { height: 38px; padding: 0 16px; border: 0; border-radius: var(--radius-btn); background: var(--yellow); color: var(--text); font-weight: 600; }
 .g-new:hover { filter: brightness(0.96); }
 .g-note { margin: 12px 20px 0; color: #C0392B; }
+/* Pin Klik to the taskbar (1.2): one quiet line, until it is pinned or hidden. */
+.g-pin { display: flex; align-items: center; gap: 8px; margin: 12px 20px 0; padding: 8px 8px 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-btn); background: #fff; }
+.g-pin svg { width: 18px; height: 18px; flex: none; }
+.g-pin-ask { display: flex; align-items: center; gap: 8px; flex: 1; border: 0; background: none; padding: 0; color: var(--indigo); text-align: left; }
+.g-pin-ask b { font-weight: 600; }
+.g-pin-ask span { color: var(--text-2); }
+.g-pin-ask:hover b { text-decoration: underline; }
+.g-pin-manual { display: flex; align-items: center; gap: 8px; flex: 1; color: var(--text-2); }
+.g-pin-x { width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 6px; background: none; color: var(--muted); }
+.g-pin-x:hover { background: var(--indigo-050); color: var(--text); }
+.g-pin-x svg { width: 14px; height: 14px; }
 .g-empty { margin: 48px auto; color: var(--text-2); }
 .g-grid { flex: 1; overflow-y: auto; padding: 20px; display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); align-content: start; }
 .g-cell { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius-card); background: #fff; text-align: left; transition: box-shadow 0.12s, border-color 0.12s; }

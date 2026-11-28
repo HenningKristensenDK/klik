@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef } from "react";
 import {
   close,
+  closeToGallery,
   closeToStudio,
   hotkeyLabel,
   inTauri,
@@ -262,6 +263,19 @@ export function Overlay() {
   );
   const done = useCallback(() => finish(false), [finish]);
   const toStudio = useCallback(() => finish(true), [finish]);
+  /** The gallery button or `G`: the image is saved, so close and show the gallery. */
+  const toGallery = useCallback(async () => {
+    const s = st.current;
+    if (s.busy || !s.sel || !shot.current) return;
+    if (s.editing !== null) commitText();
+    s.busy = true;
+    if (saveTimer.current !== undefined) await saveNow();
+    await saving.current;
+    s.mode = "idle";
+    rerender();
+    await closeToGallery();
+    s.busy = false;
+  }, [saveNow, commitText]);
 
   /**
    * Ends a long screenshot. The tall image replaces the capture and is copied
@@ -627,6 +641,7 @@ export function Overlay() {
         deletePicked();
       }
       else if (STUDIO && key === "s" && !e.ctrlKey && !e.altKey) toStudio();
+      else if (!STUDIO && key === "g" && !e.ctrlKey && !e.altKey) toGallery();
       else if (!e.ctrlKey && !e.altKey) {
         const t = TOOLS.find((x) => x.key.toLowerCase() === key);
         if (t) setTool(t.id);
@@ -634,7 +649,7 @@ export function Overlay() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [done, abort, toStudio, finishLong]);
+  }, [done, abort, toStudio, toGallery, finishLong]);
 
   // Esc from the core (the editor may not have the keyboard): same rules as
   // the key, including finishing a comment that is being typed.
@@ -926,6 +941,14 @@ export function Overlay() {
           <button className="tool" title={t.discard} onClick={abort}>
             <Icon name="close" />
           </button>
+          {!STUDIO && (
+            <>
+              <span className="sep" />
+              <button className="tool" title={t.toGallery} onClick={() => void toGallery()}>
+                <Icon name="gallery" />
+              </button>
+            </>
+          )}
           {STUDIO && (
             <button className="to-studio" title={t.toStudioTitle} onClick={toStudio}>
               <Icon name="studio" /> {t.toStudio}

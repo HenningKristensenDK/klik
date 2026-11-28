@@ -689,6 +689,108 @@ fn close_to_studio(app: AppHandle, window: WebviewWindow) -> Result<(), String> 
     Ok(())
 }
 
+/// The editor's gallery button (`G`, 1.2): the screenshot is already saved
+/// and copied, so hide the editor and open the gallery, where "New
+/// screenshot" leads back. Screenshot and gallery are one click apart.
+#[tauri::command]
+fn close_to_gallery(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
+    release_escape(&app);
+    long_cancel(&app, &window);
+    window.hide().map_err(err)?;
+    RETURN_TO_STUDIO.store(false, Ordering::SeqCst);
+    app.state::<Shot>().0.lock().unwrap().take();
+    app.state::<Editing>().0.lock().unwrap().take();
+    if let Some(p) = app.state::<CurrentFile>().0.lock().unwrap().take() {
+        announce_saved(&app, &p);
+    }
+    open_studio(&app);
+    Ok(())
+}
+
+/// Whether Klik can ask to be pinned to the taskbar, and whether it is.
+#[derive(serde::Serialize, Debug, Default, PartialEq)]
+struct PinState {
+    /// Windows offers its "Pin to taskbar?" prompt to Klik.
+    allowed: bool,
+    /// Klik is on the taskbar already.
+    pinned: bool,
+}
+
+/// Windows lets an app ask to be pinned (its own Yes/No prompt), never pin
+/// itself, and not from an installer. The gallery offers it in one line while
+/// Klik is not pinned (1.2; Microsoft Learn "Pin your app to the taskbar").
+#[tauri::command(async)]
+fn pin_state() -> PinState {
+    #[cfg(windows)]
+    {
+        taskbar::state().unwrap_or_default()
+    }
+    #[cfg(not(windows))]
+    {
+        PinState::default()
+    }
+}
+
+/// The gallery's pin line was clicked: ask Windows to show its prompt. It must
+/// run on the UI thread while Klik is in front. The gallery reads `pin_state`
+/// again when the prompt closes.
+#[tauri::command]
+fn request_pin(app: AppHandle) -> Result<(), String> {
+    #[cfg(windows)]
+    app.run_on_main_thread(|| {
+        if let Err(e) = taskbar::request() {
+            eprintln!("klik: pin request failed: {e}");
+        }
+    })
+    .map_err(err)?;
+    #[cfg(not(windows))]
+    let _ = app;
+    Ok(())
+}
+
+#[cfg(windows)]
+mod taskbar {
+    use windows::UI::Shell::TaskbarManager;
+
+    pub fn state() -> windows::core::Result<super::PinState> {
+        use windows::Win32::System::Com::{CoInitializeEx, COINIT_MULTITHREADED};
+        // A worker thread: WinRT needs COM before the first call.
+        unsafe {
+            let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+        }
+        let m = TaskbarManager::GetDefault()?;
+        if !m.IsSupported()? {
+            return Ok(super::PinState::default());
+        }
+        let pinned = m.IsCurrentAppPinnedAsync()?.join()?;
+        Ok(super::PinState { allowed: m.IsPinningAllowed()?, pinned })
+    }
+
+    pub fn request() -> windows::core::Result<()> {
+        // Windows shows the prompt; the answer is read back with `state`.
+        let _ = TaskbarManager::GetDefault()?.RequestPinCurrentAppAsync()?;
+        Ok(())
+    }
+}
+
+/// The marker that the welcome (the gallery once, with the pin line) has been
+/// shown: `%APPDATA%\dk.rtpm.klik\welcomed`, Tauri's app data folder.
+fn welcome_marker() -> Option<PathBuf> {
+    let base = std::env::var_os("APPDATA")?;
+    Some(PathBuf::from(base).join(APP_ID).join("welcomed"))
+}
+
+/// The very first start after installing opens the gallery instead of a
+/// screenshot, so a new user sees where screenshots go and can pin Klik.
+/// Starts at login (`Quiet`) and explicit `--shot` stay as they are.
+fn with_welcome(first: Launch, plain_start: bool, welcomed: bool) -> Launch {
+    if !SHOW_STUDIO && first == Launch::Shot && plain_start && !welcomed {
+        Launch::Studio
+    } else {
+        first
+    }
+}
+
 /// The handoff inbox shared with Claude through klik-mcp (same default path).
 fn inbox_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = match std::env::var("KLIK_INBOX_DIR") {
@@ -945,7 +1047,8 @@ fn set_jump_list(da: bool) -> windows::core::Result<()> {
         let _removed: IObjectArray = list.BeginList(&mut slots)?;
         let tasks: IObjectCollection = CoCreateInstance(&EnumerableObjectCollection, None, CLSCTX_INPROC_SERVER)?;
         // While Studio is hidden the "Klik" entry itself takes a screenshot, so the
-        // only task is the gallery of earlier screenshots.
+        // only task is the gallery (Henning 2026.11.28: the taskbar icon must
+        // reach it too, next to the editor's gallery button).
         let mut items = Vec::new();
         if SHOW_STUDIO {
             items.push(("--shot", if da { "Tag screenshot" } else { "Take screenshot" }));
@@ -973,7 +1076,9 @@ fn set_jump_list(da: bool) -> windows::core::Result<()> {
             tasks.AddObject(&link)?;
         }
         let array: IObjectArray = tasks.cast()?;
-        list.AddUserTasks(&array)?;
+        if array.GetCount()? > 0 {
+            list.AddUserTasks(&array)?;
+        }
         list.CommitList()?;
     }
     Ok(())
@@ -1006,6 +1111,20 @@ mod studio_tests {
         assert_eq!(launch_kind(&["klik.exe", "--studio"]), Launch::Studio);
         assert_eq!(launch_kind(&["klik.exe", "--shot"]), Launch::Shot);
         assert_eq!(launch_kind(&["klik.exe", "--background"]), Launch::Quiet);
+    }
+
+    #[test]
+    fn first_plain_start_opens_the_gallery_once() {
+        if SHOW_STUDIO {
+            return;
+        }
+        // Installer or Start menu, never welcomed: the gallery.
+        assert_eq!(with_welcome(Launch::Shot, true, false), Launch::Studio);
+        // Welcomed before: a screenshot, as always.
+        assert_eq!(with_welcome(Launch::Shot, true, true), Launch::Shot);
+        // An explicit --shot or a start at login is never turned into the gallery.
+        assert_eq!(with_welcome(Launch::Shot, false, false), Launch::Shot);
+        assert_eq!(with_welcome(Launch::Quiet, false, false), Launch::Quiet);
     }
 
     #[test]
@@ -1170,7 +1289,17 @@ pub fn run() {
     // gallery and a Screenshot button are. `--shot` (the jump list) takes a
     // screenshot. Started at login (`--background`) stays quiet.
     let args: Vec<String> = std::env::args().collect();
-    let first = launch_kind(&args);
+    let marker = welcome_marker();
+    let welcomed = marker.as_ref().map_or(true, |m| m.exists());
+    let first = with_welcome(launch_kind(&args), args.len() <= 1, welcomed);
+    if !welcomed {
+        if let Some(m) = &marker {
+            if let Some(dir) = m.parent() {
+                let _ = std::fs::create_dir_all(dir);
+            }
+            let _ = std::fs::write(m, b"");
+        }
+    }
     CAPTURE_ON_READY.store(first == Launch::Shot, Ordering::SeqCst);
     #[cfg(windows)]
     set_app_id();
@@ -1210,6 +1339,9 @@ pub fn run() {
             save_copy,
             close,
             close_to_studio,
+            close_to_gallery,
+            pin_state,
+            request_pin,
             studio_capture,
             edit_capture,
             frontend_ready,
