@@ -15,8 +15,11 @@ import "@fontsource/barlow-semi-condensed/700.css";
 import "./styles.css";
 import "./studio/studio.css";
 
-// Canvas text (step numbers) only uses Inter once it is loaded.
+// Canvas text (step numbers) only uses Inter once it is loaded; the text box
+// draws in Barlow Semi Condensed, the RTPM content font, because it is part of
+// the image, not the UI.
 document.fonts.load('700 16px "Inter"').catch(() => {});
+document.fonts.load('600 32px "Barlow Semi Condensed"').catch(() => {});
 
 // One page serves both windows: the capture overlay and Klik Studio.
 function windowLabel(): string {

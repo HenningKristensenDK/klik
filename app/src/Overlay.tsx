@@ -16,7 +16,7 @@ import {
   showOverlay,
   type Shot,
 } from "./bridge";
-import { CALLOUT, DIM, calloutLayout, hitShape, moveShape, renumber, shapeFrame, exportRgba, normRect, render, type Pt, type Rect, type Shape, type Tool } from "./draw";
+import { CALLOUT, DIM, TEXT, TEXT_FONT, calloutLayout, hitShape, moveShape, renumber, resizeText, shapeFrame, textInk, textLayout, exportRgba, normRect, render, type Pt, type Rect, type Shape, type Tool } from "./draw";
 import { Icon } from "./icons";
 import { t } from "./i18n";
 import { VERSION } from "./version";
@@ -25,15 +25,19 @@ import { STUDIO } from "./flags";
 /** `long`: the wheel is making a long screenshot of the selected area. */
 type Mode = "idle" | "select" | "edit" | "long";
 
-// RTPM brand: RAG red/green, Primary Indigo, Accent Yellow (highlighter), Ink.
-const COLORS = ["#C0392B", "#0d08d2", "#27AE60", "#ffcc00", "#15162b"];
+// RTPM brand system colours (1.1, Henning 2026.11.28): Ink Navy, red, Primary
+// Indigo, green, gold. Navy replaced black.
+const COLORS = ["#070474", "#E63946", "#0D08D2", "#28A745", "#FFCC00"];
 const DEFAULT_COLORS: Record<Tool, string> = {
-  highlight: "#ffcc00",
-  pen: "#C0392B",
-  line: "#C0392B",
-  arrow: "#0d08d2",
-  callout: "#0d08d2",
+  highlight: "#FFCC00",
+  pen: "#E63946",
+  line: "#E63946",
+  arrow: "#0D08D2",
+  callout: "#0D08D2",
+  text: "#070474",
 };
+/** How long Done reads "Copied" after a save, ms. */
+const FLASH_MS = 1400;
 /** One Undo step: the markings and the frame, so a crop can be undone too. */
 type Past = { shapes: Shape[]; sel: Rect | null };
 const remember = (s: { past: Past[]; shapes: Shape[]; sel: Rect | null }) => s.past.push({ shapes: s.shapes, sel: s.sel });
@@ -52,6 +56,7 @@ const TOOLS: { id: Tool; key: string; label: string }[] = [
   { id: "callout", key: "K", label: t.callout },
   { id: "pen", key: "P", label: t.pen },
   { id: "line", key: "L", label: t.line },
+  { id: "text", key: "T", label: t.textBox },
 ];
 
 export function Overlay() {
@@ -91,7 +96,12 @@ export function Overlay() {
     bounds: null as Rect | null,
     /** A crop handle being dragged. */
     crop: null as { h: Handle; from: Pt; orig: Rect; moved: boolean } | null,
+    /** The corner of a picked text box being dragged to resize it. */
+    resize: null as { i: number; from: Pt; orig: Extract<Shape, { kind: "text" }>; moved: boolean } | null,
+    /** Done reads "Copied" until this time, so people see it is already on the clipboard. */
+    flashUntil: 0,
   });
+  const flashTimer = useRef<number | undefined>(undefined);
   /** The area as it is now, while a long screenshot runs. */
   const live = useRef<ImageBitmap | null>(null);
   const saveTimer = useRef<number | undefined>(undefined);
@@ -120,7 +130,7 @@ export function Overlay() {
       const s = st.current;
       if (!c || !shot.current) return;
       const shapes = s.draft ? [...s.shapes, s.draft] : s.shapes;
-      render(c.getContext("2d")!, shot.current.bitmap, s.sel, shapes, k(), s.editing, s.mode === "long" ? live.current : null, s.mode === "select" ? DIM.picking : DIM.framed, s.picked);
+      render(c.getContext("2d")!, shot.current.bitmap, s.sel, shapes, k(), s.editing, s.mode === "long" ? live.current : null, s.mode === "select" ? DIM.picking : DIM.framed, s.picked, t.writeText);
     });
   }, []);
 
@@ -160,6 +170,8 @@ export function Overlay() {
           wheelAcc: 0,
           hintGone: false,
           crop: null,
+          resize: null,
+          flashUntil: 0,
           bounds: sel,
         });
         render(c.getContext("2d")!, next.bitmap, sel, [], k(), null, null, sel ? DIM.framed : DIM.picking);
@@ -188,7 +200,13 @@ export function Overlay() {
     saving.current = saving.current
       .then(() => saveCopy(png))
       .then(
-        () => my === saveSeq.current && (s.status = "saved"),
+        () => {
+          if (my !== saveSeq.current) return;
+          s.status = "saved";
+          s.flashUntil = Date.now() + FLASH_MS;
+          window.clearTimeout(flashTimer.current);
+          flashTimer.current = window.setTimeout(rerender, FLASH_MS + 20);
+        },
         () => (s.status = "error"),
       )
       .then(rerender);
@@ -204,13 +222,13 @@ export function Overlay() {
     [saveNow],
   );
 
-  /** Finish typing a comment. An empty comment is removed. */
+  /** Finish typing a comment or text box. An empty one is removed. */
   const commitText = useCallback(() => {
     const s = st.current;
     if (s.editing === null) return;
     const sh = s.shapes[s.editing];
-    if (sh?.kind === "callout") {
-      const text = sh.text.trim();
+    if (sh?.kind === "callout" || sh?.kind === "text") {
+      const text = sh.kind === "text" ? sh.text.replace(/\s+$/, "") : sh.text.trim();
       s.shapes = text
         ? s.shapes.map((x, i) => (i === s.editing ? { ...sh, text } : x))
         : s.shapes.filter((_, i) => i !== s.editing);
@@ -382,6 +400,7 @@ export function Overlay() {
       if (s.tool === "highlight" || s.tool === "pen") s.draft = { kind: s.tool, color, pts: [p] };
       else if (s.tool === "line") s.draft = { kind: "line", color, a: p, b: p };
       else if (s.tool === "callout") s.draft = { kind: "callout", color, a: p, b: p, text: "" };
+      else if (s.tool === "text") s.draft = { kind: "text", color, a: p, size: TEXT.size * k(), text: "" };
       else {
         const n = s.shapes.filter((x) => x.kind === "arrow").length + 1;
         s.draft = { kind: "arrow", color, a: p, b: p, n };
@@ -394,6 +413,15 @@ export function Overlay() {
     const s = st.current;
     if (s.mode === "select" && s.start) {
       s.sel = normRect(s.start, toImg(e));
+      paint();
+      rerender();
+    } else if (s.mode === "edit" && s.resize) {
+      const r = s.resize;
+      const dx = toImg(e).x - r.from.x;
+      if (!r.moved && Math.abs(dx) < 2 * k()) return;
+      if (!r.moved) remember(s);
+      r.moved = true;
+      s.shapes = s.shapes.map((x, i) => (i === r.i ? resizeText(r.orig, dx, k()) : x));
       paint();
       rerender();
     } else if (s.mode === "edit" && s.drag) {
@@ -432,13 +460,16 @@ export function Overlay() {
       s.start = null;
       s.mode = "edit";
       scheduleSave(0); // the area is on the clipboard as soon as it is framed
+    } else if (s.mode === "edit" && s.resize) {
+      if (s.resize.moved) scheduleSave();
+      s.resize = null;
     } else if (s.mode === "edit" && s.drag) {
       if (s.drag.moved) scheduleSave();
       s.drag = null;
     } else if (s.mode === "edit" && s.draft) {
       remember(s);
       s.shapes = [...s.shapes, s.draft];
-      if (s.draft.kind === "callout") s.editing = s.shapes.length - 1; // type now, save on commit
+      if (s.draft.kind === "callout" || s.draft.kind === "text") s.editing = s.shapes.length - 1; // type now, save on commit
       else scheduleSave();
       s.draft = null;
     }
@@ -485,6 +516,26 @@ export function Overlay() {
     rerender();
     scheduleSave();
   };
+  /** The corner of a picked text box: drag it to make the text larger or smaller. */
+  const onResizeDown = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    const s = st.current;
+    const sh = s.picked !== null ? s.shapes[s.picked] : undefined;
+    if (e.button !== 0 || sh?.kind !== "text") return;
+    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+    s.resize = { i: s.picked!, from: toImg(e), orig: sh, moved: false };
+  };
+  const onResizeMove = (e: React.PointerEvent) => {
+    if (!st.current.resize) return;
+    e.stopPropagation();
+    onMove(e);
+  };
+  const onResizeUp = (e: React.PointerEvent) => {
+    if (!st.current.resize) return;
+    e.stopPropagation();
+    onUp(e);
+  };
+
   /** A crop handle: drag it to move that edge or corner of the frame. */
   const onCropDown = (h: Handle) => (e: React.PointerEvent) => {
     e.stopPropagation();
@@ -537,7 +588,7 @@ export function Overlay() {
     const r = canvasRef.current!.getBoundingClientRect();
     const kk = k();
     const i = hitShape(s.shapes, { x: (e.clientX - r.left) * kk, y: (e.clientY - r.top) * kk }, kk);
-    if (i < 0 || s.shapes[i].kind !== "callout") return;
+    if (i < 0 || (s.shapes[i].kind !== "callout" && s.shapes[i].kind !== "text")) return;
     s.picked = null;
     s.editing = i;
     paint();
@@ -603,7 +654,7 @@ export function Overlay() {
   const setText = (text: string) => {
     const s = st.current;
     const sh = s.editing !== null ? s.shapes[s.editing] : undefined;
-    if (sh?.kind !== "callout") return;
+    if (sh?.kind !== "callout" && sh?.kind !== "text") return;
     s.shapes = s.shapes.map((x, i) => (i === s.editing ? { ...sh, text } : x));
     paint();
     rerender();
@@ -771,6 +822,63 @@ export function Overlay() {
         })()}
 
       {s.mode === "edit" &&
+        s.editing !== null &&
+        (() => {
+          // The canvas draws the box and the letters; this field lies exactly
+          // on them, see-through, so the caret and selection sit on the text.
+          const sh = s.shapes[s.editing];
+          if (sh?.kind !== "text") return null;
+          const L = textLayout(sh.text || t.writeText, sh.a, sh.size);
+          const lineCss = L.lh / kk;
+          const half = (L.lh - (L.ascent + L.descent)) / 2;
+          return (
+            <textarea
+              className="text-field"
+              autoFocus
+              spellCheck={false}
+              value={sh.text}
+              style={{
+                left: L.origin.x / kk,
+                top: (L.origin.y - half - L.ascent) / kk,
+                width: (L.box.x + L.box.w - L.origin.x) / kk + sh.size / kk,
+                height: lineCss * L.lines.length + 2,
+                font: TEXT_FONT(sh.size / kk),
+                lineHeight: `${lineCss}px`,
+                caretColor: textInk(sh.color),
+              }}
+              onChange={(e) => setText(e.target.value)}
+              onPointerDown={(e) => e.stopPropagation()}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                // Enter or Esc finishes the text; Shift+Enter is a new line.
+                if ((e.key === "Enter" && !e.shiftKey) || e.key === "Escape") {
+                  e.preventDefault();
+                  commitText();
+                }
+              }}
+            />
+          );
+        })()}
+
+      {s.mode === "edit" &&
+        s.picked !== null &&
+        s.shapes[s.picked]?.kind === "text" &&
+        s.editing === null &&
+        (() => {
+          const f = shapeFrame(s.shapes[s.picked], kk);
+          return (
+            <div
+              className="text-resize"
+              title={t.resizeText}
+              style={{ left: (f.x + f.w) / kk, top: (f.y + f.h) / kk }}
+              onPointerDown={onResizeDown}
+              onPointerMove={onResizeMove}
+              onPointerUp={onResizeUp}
+            />
+          );
+        })()}
+
+      {s.mode === "edit" &&
         s.picked !== null &&
         s.shapes[s.picked] &&
         (() => {
@@ -791,16 +899,6 @@ export function Overlay() {
 
       {s.mode === "edit" && bar && (
         <div className="bar" style={bar} onPointerDown={(e) => e.stopPropagation()}>
-          <span className="rtpm" title={t.byRtpm} aria-label={t.byRtpm}>
-            <svg viewBox="0 0 100 100" width="26" height="26" aria-hidden>
-              <path d="M0 0H47.4V29.2H29.2V47.4H0Z" />
-              <path d="M100 0V47.4H70.8V29.2H52.6V0Z" />
-              <path d="M0 100V52.6H29.2V70.8H47.4V100Z" />
-              <path d="M100 100H52.6V70.8H70.8V52.6H100Z" />
-              <circle cx="50" cy="50" r="11" />
-            </svg>
-          </span>
-          <span className="sep" />
           {TOOLS.map((t) => (
             <button
               key={t.id}
@@ -816,7 +914,7 @@ export function Overlay() {
             <button
               key={c}
               className={`swatch ${s.colors[s.tool] === c ? "on" : ""}`}
-              style={{ background: c }}
+              style={{ "--c": c } as React.CSSProperties}
               title={t.colour}
               onClick={() => setColor(c)}
             />
@@ -828,23 +926,22 @@ export function Overlay() {
           <button className="tool" title={t.discard} onClick={abort}>
             <Icon name="close" />
           </button>
-          <span className={`status ${s.status}`} aria-live="polite">
-            {s.status === "saved" && (
-              <>
-                <Icon name="check" /> {t.copied}
-              </>
-            )}
-            {s.status === "saving" && t.copying}
-            {s.status === "error" && t.copyFailed}
-          </span>
           {STUDIO && (
             <button className="to-studio" title={t.toStudioTitle} onClick={toStudio}>
               <Icon name="studio" /> {t.toStudio}
             </button>
           )}
-          <button className="done" title={t.doneTitle} onClick={done}>
-            {t.done} <kbd>Esc</kbd>
-          </button>
+          {(() => {
+            // Done says "Copied" for a moment after each save: the image is
+            // already on the clipboard, and Esc or Done only closes.
+            const flash = s.status === "saved" && Date.now() < s.flashUntil;
+            const failed = s.status === "error";
+            return (
+              <button className={`done${flash ? " flash" : ""}${failed ? " failed" : ""}`} title={t.doneTitle} onClick={done} aria-live="polite">
+                {failed ? t.copyFailed : flash ? (<><Icon name="check" /> {t.copied}</>) : t.done}
+              </button>
+            );
+          })()}
         </div>
       )}
 

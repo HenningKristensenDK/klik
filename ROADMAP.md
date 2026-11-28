@@ -2,6 +2,10 @@
 
 Klik grows one feature at a time, each as a new version. Ideas and votes: [issues](https://github.com/HenningKristensenDK/klik/issues).
 
+## 1.1: text box and a calmer toolbar
+- Text box (`T`): click and type. One rounded box, the colour at 75 %, Barlow Semi Condensed, the same margin from the letters to the edge on every side. Drag its corner to any size.
+- Toolbar from Henning's design: no logo, five small colour dots in the RTPM brand colours (Ink Navy replaces black), a smaller Done that reads "✓ Copied" after each save.
+
 ## 1.0: first Microsoft Store version
 - Klik 1.0.0 is 0.3.5 plus fixes. Later: 1.1 and 1.2 add features, 1.0.x fixes bugs.
 - A long screenshot opens again from the gallery: larger than the screen, it opens as it is, in the tall view that scrolls, with the crop handles on the image. Cropping saves over the file, and the gallery picture updates.

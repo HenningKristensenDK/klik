@@ -17,6 +17,13 @@ const P: Record<string, React.ReactNode> = {
       <path d="M5.5 7h7M5.5 9.5h4.5M14 14.5l6 5M16.5 20h3.5v-3.5" />
     </>
   ),
+  // Text box (1.1): a T in a box, as in Henning's toolbar design.
+  text: (
+    <>
+      <rect x="3.5" y="3.5" width="17" height="17" rx="3" />
+      <path d="M8.5 8.5h7M12 8.5v8" />
+    </>
+  ),
   pen: <path d="M4 18c3-1 4-6 7-6s2 5 5 5 3-5 4-7" />,
   line: <path d="M5 19L19 5" />,
   undo: (
