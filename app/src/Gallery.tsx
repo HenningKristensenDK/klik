@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { editCapture, listCaptures, onCaptureSaved, readCapture, takeScreenshot, type Capture } from "./studio/io";
 import { t } from "./i18n";
-import { pinState, requestPin, type PinState } from "./bridge";
+import { hotkeyLabel, pinState, requestPin, type PinState } from "./bridge";
 import { Icon } from "./icons";
 
 const PIN_HIDDEN = "klik-pin-hidden";
@@ -26,6 +26,11 @@ export function Gallery() {
   /** Klik on the taskbar yet? The pin line shows until it is, or until hidden. */
   const [pin, setPin] = useState<PinState | null>(null);
   const [hidePin, setHidePin] = useState(pinHidden);
+  /** The hotkey Klik actually got (it takes the first free one), shown on the button. */
+  const [hotkey, setHotkey] = useState<string | null>(null);
+  useEffect(() => {
+    hotkeyLabel().then(setHotkey, () => setHotkey(null));
+  }, []);
   const checkPin = useCallback(() => {
     pinState().then(setPin, () => setPin({ allowed: false, pinned: false }));
   }, []);
@@ -133,6 +138,7 @@ export function Gallery() {
         <span className="g-hint">{t.galleryHint}</span>
         <button className="g-new" onClick={() => void takeScreenshot()}>
           {t.galleryNew}
+          {hotkey && <kbd>{hotkey}</kbd>}
         </button>
       </header>
       {pin && !pin.pinned && !hidePin && (

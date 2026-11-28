@@ -146,7 +146,9 @@ p.warn { font-size: 13px; background: #fdf4dd; color: #8a6600; padding: 7px 10px
 .g-brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 16px; color: var(--navy); fill: var(--navy); }
 .g-brand small { font-size: 11px; font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; }
 .g-hint { color: var(--text-2); flex: 1; }
-.g-new { height: 38px; padding: 0 16px; border: 0; border-radius: var(--radius-btn); background: var(--yellow); color: var(--text); font-weight: 600; }
+.g-new { display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 10px 0 16px; border: 0; border-radius: var(--radius-btn); background: var(--yellow); color: var(--text); font-weight: 600; }
+/* The hotkey Klik got, so people learn they need not come here for a screenshot. */
+.g-new kbd { font: 600 11px "Inter", "Segoe UI", sans-serif; padding: 2px 7px; border-radius: 5px; background: rgba(21, 22, 43, 0.1); color: var(--text); }
 .g-new:hover { filter: brightness(0.96); }
 .g-note { margin: 12px 20px 0; color: #C0392B; }
 /* Pin Klik to the taskbar (1.2): one quiet line, until it is pinned or hidden. */
