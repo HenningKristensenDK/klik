@@ -3,6 +3,7 @@
 Klik grows one feature at a time, each as a new version. Ideas and votes: [issues](https://github.com/HenningKristensenDK/klik/issues).
 
 ## 1.1: text box and a calmer toolbar
+- 1.1.1: more air between the lines of a text box.
 - Text box (`T`): click and type. One rounded box, the colour at 75 %, Barlow Semi Condensed, the same margin from the letters to the edge on every side. Drag its corner to any size.
 - Toolbar from Henning's design: no logo, five small colour dots in the RTPM brand colours (Ink Navy replaces black), a smaller Done that reads "✓ Copied" after each save.
 
